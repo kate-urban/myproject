@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Processor</title>
+    
+    <!-- TinyMCE (с поддержкой таблиц) -->
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        :root {
+            --bg-primary: #f3f3f3;
+            --bg-secondary: #ffffff;
+            --border: #e1e1e1;
+            --text-primary: #1a1a1a;
+            --text-secondary: #555;
+            --accent: #0078d4;
+            --accent-hover: #106ebe;
+            --success: #107c10;
+            --danger: #d13438;
+            --hover: #f5f5f5;
+            --selected: #e5f1fb;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        html, body { 
+            height: 100%; 
+            font-family: 'Segoe UI', -apple-system, sans-serif; 
+            font-size: 13px;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+        
+        #app { height: 100vh; display: flex; flex-direction: column; }
+        
+        /* Title Bar */
+        .titlebar {
+            height: 32px;
+            background: #2b2b2b;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 12px;
+        }
+        .titlebar-title { flex: 1; }
+        
+        /* Toolbar */
+        .toolbar {
+            height: 50px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+        }
+        .tool-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tool-btn:hover { background: var(--hover); }
+        .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tool-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+        .tool-btn.primary:hover { background: var(--accent-hover); }
+        .tool-btn.success { background: var(--success); color: white; border-color: var(--success); }
+        .tool-btn.success:hover { background: #0b5e0b; }
+        
+        .tool-select {
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 200px;
+        }
+        
+        /* Main Layout */
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding: 12px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            background: #fafafa;
+        }
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .tree-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            border-left: 3px solid transparent;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            line-height: 1.35;
+        }
+        .tree-item.level-2 { padding-left: 28px; font-size: 12px; }
+        .tree-item.level-3 { padding-left: 42px; font-size: 12px; color: var(--text-secondary); }
+        .tree-item.level-1.has-children { font-weight: 600; }
+        .tree-toggle {
+            width: 16px;
+            flex-shrink: 0;
+            color: var(--text-secondary);
+            user-select: none;
+            font-size: 10px;
+            margin-top: 2px;
+        }
+        .tree-label { flex: 1; }
+        .tree-children.collapsed { display: none; }
+        .tree-empty-note {
+            font-size: 11px;
+            color: #999;
+            font-style: italic;
+            margin-left: 4px;
+        }
+        .tree-item:hover { background: var(--hover); }
+        .tree-item.active { 
+            background: var(--selected); 
+            border-left-color: var(--accent);
+            font-weight: 500;
+        }
+        
+        .empty-state {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        /* Editor Area */
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #e8e8e8;
+        }
+        
+        .editor-container {
+            flex: 1;
+            overflow: auto;
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .editor-page {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            box-shadow: var(--shadow);
+            border-radius: 2px;
+            min-height: calc(100vh - 200px);
+            padding: 20px;
+        }
+        
+        .editor-page-header {
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        /* TinyMCE стили */
+        .tox-tinymce {
+            border-radius: 4px !important;
+        }
+        
+        /* Стили для таблиц внутри TinyMCE */
+        .mce-content-body table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        .mce-content-body table td,
+        .mce-content-body table th {
+            border: 1px solid #999;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .mce-content-body table th {
+            background: #f0f0f0;
+            font-weight: 600;
+        }
+        
+        /* Status Bar */
+        .statusbar {
+            height: 24px;
+            background: var(--accent);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 11px;
+            gap: 16px;
+        }
+        .statusbar-spacer { flex: 1; }
+        
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 40px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            background: white;
+            border-left: 4px solid var(--accent);
+            padding: 12px 16px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 280px;
+            animation: slideIn 0.3s ease;
+        }
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        @keyframes slideIn { 
+            from { transform: translateX(100%); opacity: 0; } 
+            to { transform: translateX(0); opacity: 1; } 
+        }
+        
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Title Bar -->
+        <div class="titlebar">
+            <div class="titlebar-title">📄 Document Processor — <span id="doc-name">Без документа</span></div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <input type="file" id="file-input" accept=".pdf,.docx">
+            <button class="tool-btn" onclick="document.getElementById('file-input').click()">📂 Открыть файл</button>
+            <button class="tool-btn primary" id="upload-btn" onclick="handleUpload()" disabled>📤 Загрузить</button>
+            <button class="tool-btn success" id="save-btn" onclick="handleSaveSection()" disabled>💾 Сохранить</button>
+            
+            <select class="tool-select" id="template-select">
+                <option value="">Выберите шаблон...</option>
+            </select>
+            <button class="tool-btn primary" id="export-btn" onclick="handleExport()" disabled>📥 Экспорт</button>
+        </div>
+
+        <!-- Main -->
+        <div class="main">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-header">Разделы документа (<span id="sections-count">0</span>)</div>
+                <div class="sidebar-content" id="sections-list">
+                    <div class="empty-state">Загрузите документ</div>
+                </div>
+            </div>
+
+            <!-- Editor -->
+            <div class="editor-area">
+                <div class="editor-container">
+                    <div class="editor-page">
+                        <div class="editor-page-header" id="section-title">Выберите раздел для редактирования</div>
+                        <textarea id="editor"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="statusbar">
+            <span id="status-text">Готово</span>
+            <div class="statusbar-spacer"></div>
+            <span>PostgreSQL</span>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // ===== Global State =====
+        const state = {
+            docId: null,
+            docName: '',
+            docType: '',
+            sections: [],
+            selectedSectionId: null,
+            pendingSectionId: null,
+            sectionContent: '',
+            templates: [],
+            selectedTemplate: '',
+            collapsedNodes: new Set(),
+        };
+
+        let editorReady = false;
+        const API = 'http://localhost:8000/api/v1';
+
+        // ===== Initialize TinyMCE =====
+        document.addEventListener('DOMContentLoaded', () => {
+            tinymce.init({
+                selector: '#editor',
+                height: 600,
+                menubar: false,
+                plugins: [
+                    'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                    'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                    'insertdatetime', 'media', 'table', 'help', 'wordcount'
+                ],
+                toolbar: 'undo redo | blocks | ' +
+                    'bold italic forecolor | alignleft aligncenter ' +
+                    'alignright alignjustify | bullist numlist outdent indent | ' +
+                    'table | removeformat | code | help',
+                content_style: 'body { font-family: "Calibri", "Segoe UI", Arial, sans-serif; font-size: 14px; line-height: 1.6; padding: 20px; } ' +
+                    'table { border-collapse: collapse; width: 100%; margin: 15px 0; } ' +
+                    'table td, table th { border: 1px solid #999; padding: 8px 10px; } ' +
+                    'table th { background: #f0f0f0; font-weight: 600; }',
+                table_sizing_mode: 'relative',
+                table_use_colgroups: true,
+                table_header_type: 'section',
+                table_default_attributes: { border: '1' },
+                table_default_styles: { 'border-collapse': 'collapse', width: '100%' },
+                table_toolbar: 'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol',
+                setup: (editor) => {
+                    editor.on('init', () => {
+                        editorReady = true;
+                        if (state.pendingSectionId) {
+                            selectSection(state.pendingSectionId);
+                            state.pendingSectionId = null;
+                        }
+                    });
+                    editor.on('change', () => {
+                        state.sectionContent = editor.getContent();
+                    });
+                    editor.on('keyup', () => {
+                        state.sectionContent = editor.getContent();
+                    });
+                }
+            });
+
+            // File input handler
+            document.getElementById('file-input').addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    document.getElementById('upload-btn').disabled = false;
+                }
+            });
+
+            // Load templates
+            fetchTemplates();
+        });
+
+        // ===== Toast =====
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+
+        // ===== Fetch Templates =====
+        async function fetchTemplates() {
+            try {
+                const res = await fetch(`${API}/templates/`);
+                if (res.ok) {
+                    const data = await res.json();
+                    state.templates = data;
+                    const select = document.getElementById('template-select');
+                    select.innerHTML = '<option value="">Выберите шаблон...</option>';
+                    data.forEach(t => {
+                        const option = document.createElement('option');
+                        option.value = t.id;
+                        option.textContent = t.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (e) {
+                console.error('Ошибка загрузки шаблонов:', e);
+            }
+        }
+
+        // ===== Upload Document =====
+        function parseApiError(body, status) {
+            if (!body) return `Ошибка сервера (${status})`;
+            if (typeof body.detail === 'string') return body.detail;
+            if (Array.isArray(body.detail)) {
+                return body.detail.map(d => d.msg || JSON.stringify(d)).join('; ');
+            }
+            if (typeof body.message === 'string') return body.message;
+            return `Ошибка сервера (${status})`;
+        }
+
+        async function readApiError(res) {
+            const text = await res.text();
+            try {
+                return parseApiError(JSON.parse(text), res.status);
+            } catch {
+                return text.trim().slice(0, 200) || `Ошибка сервера (${res.status})`;
+            }
+        }
+
+        async function handleUpload() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            if (!file) return showToast('Выберите файл', 'error');
+
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!['pdf', 'docx'].includes(ext)) {
+                return showToast('Поддерживаются только PDF и DOCX', 'error');
+            }
+
+            document.getElementById('status-text').textContent = 'Загрузка...';
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch(`${API}/upload/`, { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(await readApiError(res));
+                const data = await res.json();
+                
+                state.docId = data.id;
+                state.docName = data.filename;
+                state.docType = data.doc_type || '';
+                state.sections = data.sections;
+                state.collapsedNodes.clear();
+                
+                document.getElementById('doc-name').textContent = data.filename;
+                document.getElementById('sections-count').textContent = data.sections.length;
+                
+                renderSections();
+                
+                if (data.sections.length > 0) {
+                    const first = data.sections.find(s => s.content && s.content.trim()) || data.sections[0];
+                    selectSection(first.id);
+                }
+                
+                document.getElementById('export-btn').disabled = false;
+                showToast(`Документ "${data.filename}" загружен!`);
+            } catch (e) {
+                showToast('Ошибка: ' + e.message, 'error');
+            } finally {
+                document.getElementById('status-text').textContent = 'Готово';
+            }
+        }
+
+        // ===== Render Sections (tree) =====
+        function buildSectionTree(sections) {
+            const byParent = new Map();
+            sections.forEach(s => {
+                const key = s.parent_id || 'root';
+                if (!byParent.has(key)) byParent.set(key, []);
+                byParent.get(key).push(s);
+            });
+            byParent.forEach(list => list.sort((a, b) => a.order_index - b.order_index));
+            return byParent;
+        }
+
+        function renderTreeNode(section, byParent, container) {
+            const children = byParent.get(section.id) || [];
+            const hasChildren = children.length > 0;
+            const isCollapsed = state.collapsedNodes.has(section.id);
+            const isActive = state.selectedSectionId === section.id;
+            const isEmpty = !section.content || !section.content.trim();
+
+            const item = document.createElement('div');
+            item.className = `tree-item level-${section.level || 1}${hasChildren ? ' has-children' : ''}${isActive ? ' active' : ''}`;
+
+            if (hasChildren) {
+                const toggle = document.createElement('span');
+                toggle.className = 'tree-toggle';
+                toggle.textContent = isCollapsed ? '▶' : '▼';
+                toggle.onclick = (e) => {
+                    e.stopPropagation();
+                    if (state.collapsedNodes.has(section.id)) {
+                        state.collapsedNodes.delete(section.id);
+                    } else {
+                        state.collapsedNodes.add(section.id);
+                    }
+                    renderSections();
+                };
+                item.appendChild(toggle);
+            } else {
+                const spacer = document.createElement('span');
+                spacer.className = 'tree-toggle';
+                spacer.textContent = '';
+                item.appendChild(spacer);
+            }
+
+            const label = document.createElement('span');
+            label.className = 'tree-label';
+            label.textContent = section.section_name;
+            if (isEmpty && hasChildren) {
+                const note = document.createElement('span');
+                note.className = 'tree-empty-note';
+                note.textContent = ' (заголовок)';
+                label.appendChild(note);
+            }
+            item.appendChild(label);
+
+            item.onclick = () => selectSection(section.id);
+            container.appendChild(item);
+
+            if (hasChildren) {
+                const childWrap = document.createElement('div');
+                childWrap.className = `tree-children${isCollapsed ? ' collapsed' : ''}`;
+                children.forEach(child => renderTreeNode(child, byParent, childWrap));
+                container.appendChild(childWrap);
+            }
+        }
+
+        function renderSections() {
+            const list = document.getElementById('sections-list');
+            if (state.sections.length === 0) {
+                list.innerHTML = '<div class="empty-state">Загрузите документ</div>';
+                return;
+            }
+
+            list.innerHTML = '';
+            const byParent = buildSectionTree(state.sections);
+            const roots = byParent.get('root') || [];
+            roots.forEach(section => renderTreeNode(section, byParent, list));
+        }
+
+        // ===== Select Section =====
+        function ensureHtml(content) {
+            if (!content) return '';
+            if (/<[a-z][\s\S]*>/i.test(content)) return content;
+            return content
+                .split(/\n\s*\n/)
+                .filter(p => p.trim())
+                .map(p => `<p>${p.trim().replace(/\n/g, '<br>')}</p>`)
+                .join('');
+        }
+
+        function selectSection(id) {
+            state.selectedSectionId = id;
+            const section = state.sections.find(s => s.id === id);
+            if (!section) return;
+
+            if (!editorReady) {
+                state.pendingSectionId = id;
+                document.getElementById('section-title').textContent = section.section_name;
+                document.getElementById('save-btn').disabled = false;
+                renderSections();
+                return;
+            }
+
+            state.sectionContent = section.content;
+            const editor = tinymce.get('editor');
+            if (editor) {
+                editor.setContent(ensureHtml(section.content || ''));
+            }
+            document.getElementById('section-title').textContent = section.section_name;
+            document.getElementById('save-btn').disabled = false;
+            renderSections();
+        }
+
+        // ===== Save Section =====
+        async function handleSaveSection() {
+            if (!state.selectedSectionId) return;
+            
+            document.getElementById('status-text').textContent = 'Сохранение...';
+            try {
+                const editor = tinymce.get('editor');
+                const content = editor ? editor.getContent() : state.sectionContent;
+                
+                const res = await fetch(`${API}/sections/${state.selectedSectionId}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content }),
+                });
+                if (res.ok) {
+                    const updated = state.sections.find(s => s.id === state.selectedSectionId);
+                    if (updated) updated.content = content;
+                    showToast('Сохранено!');
+                } else {
+                    throw new Error(await readApiError(res));
+                }
+            } catch (e) {
+                showToast('Ошибка: ' + e.message, 'error');
+            } finally {
+                document.getElementById('status-text').textContent = 'Готово';
+            }
+        }
+
+        // ===== Export =====
+        async function handleExport() {
+            const templateId = document.getElementById('template-select').value;
+            if (!state.docId) return showToast('Сначала загрузите документ', 'error');
+            if (!templateId) return showToast('Выберите шаблон', 'error');
+            
+            window.open(`${API}/export/${state.docId}/?template_id=${templateId}`, '_blank');
+            showToast('Экспорт запущен');
+        }
+    </script>
+</body>
+</html>
