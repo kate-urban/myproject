@@ -58,6 +58,9 @@
             align-items: center;
             padding: 0 12px;
             gap: 8px;
+            position: relative;
+            z-index: 20;
+            flex-wrap: wrap;
         }
         .tool-btn {
             padding: 8px 16px;
@@ -82,8 +85,28 @@
             border: 1px solid var(--border);
             border-radius: 4px;
             font-size: 13px;
-            min-width: 200px;
+            min-width: 220px;
+            max-width: 320px;
+            background: #fff;
+            cursor: pointer;
         }
+        .tool-select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .tool-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .tool-link {
+            color: var(--accent);
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: underline;
+            white-space: nowrap;
+        }
+        .tool-link:hover { color: var(--accent-hover); }
         
         /* Main Layout */
         .main {
@@ -265,14 +288,19 @@
         <!-- Toolbar -->
         <div class="toolbar">
             <input type="file" id="file-input" accept=".pdf,.docx">
+            <input type="file" id="template-input" accept=".docx" style="display:none">
             <button class="tool-btn" onclick="document.getElementById('file-input').click()">📂 Открыть файл</button>
             <button class="tool-btn primary" id="upload-btn" onclick="handleUpload()" disabled>📤 Загрузить</button>
             <button class="tool-btn success" id="save-btn" onclick="handleSaveSection()" disabled>💾 Сохранить</button>
-            
-            <select class="tool-select" id="template-select">
-                <option value="">Выберите шаблон...</option>
+
+            <span class="tool-label">Шаблон:</span>
+            <select class="tool-select" id="template-select" title="Шаблон Word для экспорта" onchange="onTemplateChange()">
+                <option value="">Загрузка...</option>
             </select>
-            <button class="tool-btn primary" id="export-btn" onclick="handleExport()" disabled>📥 Экспорт</button>
+            <button class="tool-btn" id="refresh-templates-btn" onclick="fetchTemplates()" title="Обновить список">🔄</button>
+            <button class="tool-btn primary" id="export-btn" onclick="handleExport()" disabled title="Скачать документ по выбранному шаблону">📥 Экспорт</button>
+            <span class="tool-link" onclick="document.getElementById('template-input').click()" title="Добавить новый .docx в каталог шаблонов">+ свой шаблон</span>
+            <a class="tool-btn" href="/validation" style="text-decoration:none">📋 Сверка УП</a>
         </div>
 
         <!-- Main -->
@@ -322,7 +350,7 @@
         };
 
         let editorReady = false;
-        const API = 'http://localhost:8000/api/v1';
+        const API = `${window.location.origin}/api/v1`;
 
         // ===== Initialize TinyMCE =====
         document.addEventListener('DOMContentLoaded', () => {
@@ -373,6 +401,13 @@
                 }
             });
 
+            document.getElementById('template-input').addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    handleTemplateUpload(e.target.files[0]);
+                    e.target.value = '';
+                }
+            });
+
             // Load templates
             fetchTemplates();
         });
@@ -388,14 +423,64 @@
         }
 
         // ===== Fetch Templates =====
+        function onTemplateChange() {
+            const select = document.getElementById('template-select');
+            state.selectedTemplate = select.value || '';
+            updateExportState();
+        }
+
+        function autoPickTemplate(docType, filename) {
+            const select = document.getElementById('template-select');
+            if (!state.templates.length) return false;
+
+            const nameUpper = (filename || '').toUpperCase();
+            const isFos = docType === 'fos' || nameUpper.startsWith('FOS_');
+            const keyword = isFos ? 'ФОС' : 'РПД';
+
+            let match = state.templates.find(t => t.name.toUpperCase().includes(keyword));
+            if (!match) match = state.templates[0];
+
+            select.value = match.id;
+            state.selectedTemplate = match.id;
+            updateExportState();
+            return true;
+        }
+
+        function updateExportState() {
+            const select = document.getElementById('template-select');
+            const templateId = select.value || '';
+            state.selectedTemplate = templateId;
+            const exportBtn = document.getElementById('export-btn');
+            exportBtn.disabled = !(state.docId && templateId);
+
+            const tpl = state.templates.find(t => t.id === templateId);
+            if (state.docId && tpl) {
+                document.getElementById('status-text').textContent =
+                    `Готово к экспорту: ${tpl.name}`;
+            } else if (state.docId) {
+                document.getElementById('status-text').textContent =
+                    'Выберите шаблон в списке «Шаблон:»';
+            }
+        }
+
         async function fetchTemplates() {
+            const select = document.getElementById('template-select');
+            const refreshBtn = document.getElementById('refresh-templates-btn');
+            const previousId = state.selectedTemplate || select.value;
+            select.disabled = true;
+            if (refreshBtn) refreshBtn.disabled = true;
+            select.innerHTML = '<option value="">Загрузка...</option>';
+
             try {
                 const res = await fetch(`${API}/templates/`);
-                if (res.ok) {
-                    const data = await res.json();
-                    state.templates = data;
-                    const select = document.getElementById('template-select');
-                    select.innerHTML = '<option value="">Выберите шаблон...</option>';
+                if (!res.ok) throw new Error(await readApiError(res));
+                const data = await res.json();
+                state.templates = data;
+                select.innerHTML = '<option value="">— выберите шаблон —</option>';
+                if (data.length === 0) {
+                    select.innerHTML = '<option value="">Нет шаблонов (папка Layout/)</option>';
+                    showToast('Шаблоны не найдены. Положите файлы в Layout/ и нажмите 🔄', 'error');
+                } else {
                     data.forEach(t => {
                         const option = document.createElement('option');
                         option.value = t.id;
@@ -403,8 +488,44 @@
                         select.appendChild(option);
                     });
                 }
+
+                if (previousId && data.some(t => t.id === previousId)) {
+                    select.value = previousId;
+                    state.selectedTemplate = previousId;
+                } else if (state.docId) {
+                    autoPickTemplate(state.docType, state.docName);
+                }
+                updateExportState();
             } catch (e) {
                 console.error('Ошибка загрузки шаблонов:', e);
+                select.innerHTML = '<option value="">Ошибка загрузки</option>';
+                showToast('Не удалось загрузить шаблоны: ' + e.message, 'error');
+            } finally {
+                select.disabled = false;
+                if (refreshBtn) refreshBtn.disabled = false;
+                updateExportState();
+            }
+        }
+
+        async function handleTemplateUpload(file) {
+            if (!file.name.toLowerCase().endsWith('.docx')) {
+                return showToast('Шаблон должен быть в формате DOCX', 'error');
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('name', file.name.replace(/\.docx$/i, ''));
+            try {
+                const res = await fetch(`${API}/templates/`, { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(await readApiError(res));
+                const uploaded = await res.json();
+                showToast(`Шаблон «${uploaded.name}» добавлен в каталог`);
+                state.selectedTemplate = uploaded.id;
+                await fetchTemplates();
+                document.getElementById('template-select').value = uploaded.id;
+                state.selectedTemplate = uploaded.id;
+                updateExportState();
+            } catch (e) {
+                showToast('Ошибка загрузки шаблона: ' + e.message, 'error');
             }
         }
 
@@ -462,13 +583,17 @@
                     const first = data.sections.find(s => s.content && s.content.trim()) || data.sections[0];
                     selectSection(first.id);
                 }
-                
-                document.getElementById('export-btn').disabled = false;
-                showToast(`Документ "${data.filename}" загружен!`);
+
+                if (!autoPickTemplate(state.docType, state.docName)) {
+                    updateExportState();
+                }
+                showToast(`Документ «${data.filename}» загружен`);
             } catch (e) {
                 showToast('Ошибка: ' + e.message, 'error');
             } finally {
-                document.getElementById('status-text').textContent = 'Готово';
+                if (!state.docId || !document.getElementById('template-select').value) {
+                    document.getElementById('status-text').textContent = 'Готово';
+                }
             }
         }
 
@@ -551,6 +676,24 @@
         }
 
         // ===== Select Section =====
+        function flushEditorToState() {
+            if (!state.selectedSectionId) return;
+            const editor = tinymce.get('editor');
+            const content = editor ? editor.getContent() : state.sectionContent;
+            const section = state.sections.find(s => s.id === state.selectedSectionId);
+            if (section) section.content = content;
+        }
+
+        function buildExportPayload() {
+            flushEditorToState();
+            return {
+                sections: state.sections.map(s => ({
+                    id: s.id,
+                    content: s.content || '',
+                })),
+            };
+        }
+
         function ensureHtml(content) {
             if (!content) return '';
             if (/<[a-z][\s\S]*>/i.test(content)) return content;
@@ -562,6 +705,9 @@
         }
 
         function selectSection(id) {
+            if (state.selectedSectionId && state.selectedSectionId !== id) {
+                flushEditorToState();
+            }
             state.selectedSectionId = id;
             const section = state.sections.find(s => s.id === id);
             if (!section) return;
@@ -587,11 +733,12 @@
         // ===== Save Section =====
         async function handleSaveSection() {
             if (!state.selectedSectionId) return;
-            
+
+            flushEditorToState();
             document.getElementById('status-text').textContent = 'Сохранение...';
             try {
-                const editor = tinymce.get('editor');
-                const content = editor ? editor.getContent() : state.sectionContent;
+                const section = state.sections.find(s => s.id === state.selectedSectionId);
+                const content = section ? section.content : state.sectionContent;
                 
                 const res = await fetch(`${API}/sections/${state.selectedSectionId}/`, {
                     method: 'PATCH',
@@ -612,14 +759,73 @@
             }
         }
 
+        async function persistAllSectionsForExport() {
+            flushEditorToState();
+            await Promise.all(
+                state.sections.map(s =>
+                    fetch(`${API}/sections/${s.id}/`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: s.content || '' }),
+                    })
+                )
+            );
+        }
+
+        async function requestExport(url, payload) {
+            let res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            // Старый сервер без POST /export/ — используем GET после сохранения разделов
+            if (res.status === 405) {
+                res = await fetch(url);
+            }
+            return res;
+        }
+
         // ===== Export =====
         async function handleExport() {
             const templateId = document.getElementById('template-select').value;
-            if (!state.docId) return showToast('Сначала загрузите документ', 'error');
-            if (!templateId) return showToast('Выберите шаблон', 'error');
-            
-            window.open(`${API}/export/${state.docId}/?template_id=${templateId}`, '_blank');
-            showToast('Экспорт запущен');
+            if (!state.docId) {
+                return showToast('Сначала загрузите документ (Открыть файл → Загрузить)', 'error');
+            }
+            if (!templateId) {
+                return showToast('Выберите шаблон в списке «Шаблон:»', 'error');
+            }
+
+            document.getElementById('status-text').textContent = 'Сохранение и экспорт...';
+            document.getElementById('export-btn').disabled = true;
+
+            try {
+                await persistAllSectionsForExport();
+                const url = `${API}/export/${state.docId}/?template_id=${encodeURIComponent(templateId)}`;
+                const res = await requestExport(url, buildExportPayload());
+                if (!res.ok) throw new Error(await readApiError(res));
+
+                const injected = res.headers.get('X-Sections-Injected');
+                const total = res.headers.get('X-Sections-Total');
+
+                const blob = await res.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = objectUrl;
+                const safeName = (state.docName || 'document').replace(/[<>:"/\\|?*]+/g, '_');
+                link.download = safeName.toLowerCase().endsWith('.docx') ? safeName : `${safeName}.docx`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(objectUrl);
+                const note = injected && total
+                    ? `Скачан файл (в шаблон подставлено ${injected} из ${total} разделов)`
+                    : 'Файл скачан';
+                showToast(note);
+            } catch (e) {
+                showToast('Ошибка экспорта: ' + e.message, 'error');
+            } finally {
+                updateExportState();
+            }
         }
     </script>
 </body>
