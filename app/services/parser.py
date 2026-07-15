@@ -21,6 +21,36 @@ HEADING_STYLE_LEVELS = {
 
 SUBSUB_PATTERN = re.compile(r"^\d+\.\d+\.\d+[\.\)]?\s*\S")
 CHAPTER_PATTERN = re.compile(r"^\d+[\.\)]\s*\S")
+# Нумерованные вопросы ФОС/экзамена («2. Объясните…») — не заголовки разделов РПД
+EXAM_QUESTION_HEADING_RE = re.compile(
+    r"^\d+[\.\)]\s+(?:"
+    r"объясните|перечислите|опишите|раскройте|сформулируйте|назовите|"
+    r"дайте|приведите|сравните|определите|решите|вычислите|постройте|"
+    r"найдите|докажите|разработайте|составьте|проанализируйте|"
+    r"охарактеризуйте|укажите|рассмотрите|оцените|выберите|"
+    r"какие|каков|что\s+такое|в\s+ч[её]м|почему|как\s+"
+    r")\b",
+    re.IGNORECASE,
+)
+MAJOR_SECTION_KEYWORDS = (
+    "перечень",
+    "планируем",
+    "компетенц",
+    "содержание",
+    "фонд",
+    "объем",
+    "объём",
+    "контроль",
+    "литератур",
+    "ресурс",
+    "условия",
+    "организац",
+    "универсальн",
+    "общепроф",
+    "профессиональн",
+    "индикатор",
+    "результат",
+)
 
 
 @dataclass
@@ -94,6 +124,22 @@ class DocumentParser:
             return "pdf", self._flat_dict_to_sections(flat)
 
         return await asyncio.to_thread(_sync)
+
+    def parse_docx_sync(self, file_bytes: bytes) -> tuple[str, List[ParsedSection]]:
+        """Синхронный разбор DOCX (для экспорта в потоке asyncio.to_thread)."""
+
+        def _sync():
+            doc = DocxDocument(io.BytesIO(file_bytes))
+            doc_type = self._detect_doc_type(doc)
+            if doc_type in ("rp", "fos"):
+                sections = self._parse_by_word_styles(doc, doc_type)
+                if sections:
+                    return doc_type, sections
+            lines_data = self._extract_lines(doc)
+            flat = self._split_by_structure(lines_data, source_type="docx")
+            return "generic", self._flat_dict_to_sections(flat)
+
+        return _sync()
 
     async def parse_docx(self, file_bytes: bytes) -> tuple[str, List[ParsedSection]]:
         def _sync():
@@ -211,6 +257,35 @@ class DocumentParser:
                 return level
         return None
 
+    @staticmethod
+    def _looks_like_exam_question_heading(text: str) -> bool:
+        cleaned = re.sub(r"\s+", " ", text.strip())
+        if not cleaned:
+            return False
+        if EXAM_QUESTION_HEADING_RE.match(cleaned):
+            return True
+        body = re.sub(r"^\d+(?:\.\d+)*[\.\)]?\s+", "", cleaned)
+        return len(body) < 160 and body.endswith("?")
+
+    @staticmethod
+    def _is_major_chapter_heading(text: str) -> bool:
+        """«2. ПЕРЕЧЕНЬ…» — глава; «2. Объясните…» — нумерованный вопрос, не глава."""
+        cleaned = re.sub(r"\s+", " ", text.strip())
+        if DocumentParser._looks_like_exam_question_heading(cleaned):
+            return False
+        body = re.sub(r"^\d+[\.\)]\s+", "", cleaned)
+        if not body:
+            return False
+        lowered = body.lower()
+        if any(keyword in lowered for keyword in MAJOR_SECTION_KEYWORDS):
+            return True
+        letters = [char for char in body if char.isalpha()]
+        if letters:
+            upper_ratio = sum(1 for char in letters if char.isupper()) / len(letters)
+            if upper_ratio >= 0.65 and len(body) <= 120:
+                return True
+        return False
+
     def _parse_by_word_styles(self, doc: DocxDocument, doc_type: str) -> List[ParsedSection]:
         raw: List[dict] = []
         current: Optional[dict] = None
@@ -239,8 +314,13 @@ class DocumentParser:
                     level == 2
                     and re.match(r"^\d+\.\s+(?!\d)", text)
                     and not re.match(r"^\d+\.\d+", text)
+                    and self._is_major_chapter_heading(text)
                 ):
                     level = 1
+
+                # Нумерованные вопросы экзамена/ФОС не выделяем в отдельные разделы
+                if level is not None and self._looks_like_exam_question_heading(text):
+                    level = None
 
                 # Продолжение многострочного заголовка (вторая строка без номера)
                 if (

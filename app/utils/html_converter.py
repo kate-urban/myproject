@@ -5,6 +5,8 @@ from docx.oxml import OxmlElement
 from docx.shared import Pt
 from docx.text.paragraph import Paragraph
 
+from app.utils.docx_repair import ensure_document_sectpr
+
 
 def _insert_paragraph_after(paragraph: Paragraph) -> Paragraph:
     new_p = OxmlElement("w:p")
@@ -93,6 +95,7 @@ def _insert_table_after(paragraph: Paragraph, doc: Document, node: Tag) -> Parag
     if not rows:
         return paragraph
     cols = max(len(row.find_all(["td", "th"])) for row in rows)
+    ensure_document_sectpr(doc)
     table = doc.add_table(rows=len(rows), cols=cols)
     tbl_el = table._tbl
     tbl_el.getparent().remove(tbl_el)
@@ -100,8 +103,47 @@ def _insert_table_after(paragraph: Paragraph, doc: Document, node: Tag) -> Parag
     for i, row in enumerate(rows):
         cells = row.find_all(["td", "th"])
         for j, cell in enumerate(cells):
-            table.cell(i, j).text = cell.get_text(strip=True)
+            _fill_table_cell(table.cell(i, j), cell)
     return _insert_paragraph_after(paragraph)
+
+
+def _fill_table_cell(docx_cell, html_cell: Tag) -> None:
+    docx_cell.text = ""
+    paragraph = docx_cell.paragraphs[0]
+    inner_html = "".join(str(child) for child in html_cell.contents)
+    if inner_html.strip():
+        _append_html_inline(paragraph, inner_html)
+    else:
+        paragraph.add_run(html_cell.get_text(strip=True))
+
+
+def _append_html_inline(paragraph, html: str) -> None:
+    soup = BeautifulSoup(html or "", "html.parser")
+    for node in soup.children:
+        if isinstance(node, NavigableString):
+            text = str(node)
+            if text:
+                paragraph.add_run(text)
+            continue
+        if not isinstance(node, Tag):
+            continue
+        tag = node.name.lower()
+        if tag in ("b", "strong"):
+            run = paragraph.add_run(node.get_text())
+            run.bold = True
+        elif tag in ("i", "em"):
+            run = paragraph.add_run(node.get_text())
+            run.italic = True
+        elif tag == "br":
+            paragraph.add_run().add_break()
+        elif tag == "p":
+            for child in node.children:
+                if isinstance(child, NavigableString):
+                    paragraph.add_run(str(child))
+                elif isinstance(child, Tag):
+                    _append_html_inline(paragraph, str(child))
+        else:
+            paragraph.add_run(node.get_text())
 
 
 def _process_node(node, doc, parent_paragraph=None):
@@ -156,11 +198,12 @@ def _process_node(node, doc, parent_paragraph=None):
         rows = node.find_all("tr")
         if rows:
             cols = max(len(row.find_all(["td", "th"])) for row in rows)
+            ensure_document_sectpr(doc)
             table = doc.add_table(rows=len(rows), cols=cols)
             for i, row in enumerate(rows):
                 cells = row.find_all(["td", "th"])
                 for j, cell in enumerate(cells):
-                    table.cell(i, j).text = cell.get_text(strip=True)
+                    _fill_table_cell(table.cell(i, j), cell)
     else:
         for child in node.children:
             _process_node(child, doc, parent_paragraph)

@@ -51,11 +51,75 @@ def test_r015_fails_on_paraphrase() -> None:
     assert result.passed is False
 
 
+def test_r015_passes_with_punctuation_diff() -> None:
+    rpd = RpdExtract(
+        section2_zuv_by_indicator={"ОПК-1.1": ["знать законы физики;"]},
+        topics31_zuv_phrases=["знать законы физики"],
+    )
+    result = rule_r015(_ctx(rpd))
+    assert result.passed is True
+
+
+def test_r015_passes_when_topics31_expand_section2() -> None:
+    rpd = RpdExtract(
+        section2_zuv_by_indicator={
+            "ОПК-1.1": ["знать основные понятия и утверждения изучаемых разделов математики"]
+        },
+        topics31_zuv_phrases=[
+            "знать основные понятия и утверждения линейной алгебры изучаемых разделов"
+        ],
+    )
+    result = rule_r015(_ctx(rpd))
+    assert result.passed is True
+
+
+def test_r015_passes_without_trailing_competency_codes() -> None:
+    rpd = RpdExtract(
+        section2_zuv_by_indicator={"УК-5.2": ["уметь находить и использовать социальную информацию"]},
+        topics31_zuv_phrases=["уметь находить и использовать социальную информацию ук-5 2"],
+    )
+    result = rule_r015(_ctx(rpd))
+    assert result.passed is True
+
+
 def test_r016_requires_current_control_row() -> None:
     rpd = RpdExtract(sr_table_total=100, sr_has_current_control=False)
     result = rule_r016(_ctx(rpd))
     assert result.passed is False
     assert "текущему контролю" in result.message
+
+
+def test_r016_fails_when_control_hours_missing_in_35() -> None:
+    rpd = RpdExtract(sr_table_total=100, sr_has_current_control=True, sr_control_work_hours=None)
+    result = rule_r016(_ctx(rpd, hours_control=10))
+    assert result.passed is False
+    assert "не указаны часы контрольной" in result.message
+
+
+def test_r026_uses_topics_lab_hours() -> None:
+    from app.services.validation.rules import rule_r026
+
+    rpd = RpdExtract(
+        volume=VolumeBreakdown(contact=100, lectures=40, practical=50, lab=10),
+        topics_lecture_hours=40,
+        topics_practical_hours=50,
+        topics_lab_hours=10,
+    )
+    result = rule_r026(_ctx(rpd, hours_contact=100))
+    assert result.passed is True
+
+
+def test_r026_fails_when_lab_missing_from_topics() -> None:
+    from app.services.validation.rules import rule_r026
+
+    rpd = RpdExtract(
+        volume=VolumeBreakdown(contact=100, lectures=40, practical=50, lab=10),
+        topics_lecture_hours=40,
+        topics_practical_hours=50,
+        topics_lab_hours=None,
+    )
+    result = rule_r026(_ctx(rpd, hours_contact=100))
+    assert result.passed is False
 
 
 def test_r016_control_hours_must_match_plan() -> None:
@@ -75,6 +139,19 @@ def test_r017_fails_on_numeric_kp_flag() -> None:
     )
     result = rule_r017(_ctx(rpd))
     assert result.passed is False
+
+
+def test_r018_skips_hour_total_without_budget_row() -> None:
+    rpd = RpdExtract(
+        topic_numbers=[1, 2],
+        sr_questions=[{"number": "1.1", "topic": 1, "hours": 10}],
+        sr_questions_hours_total=10,
+        sr_table_total=144,
+        sr_self_study_budget_hours=None,
+    )
+    result = rule_r018(_ctx(rpd))
+    assert result.passed is True
+    assert "итог 3.5" in result.message.lower() or "сверки" in result.message.lower()
 
 
 def test_r018_bad_question_topic_number() -> None:

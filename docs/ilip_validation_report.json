@@ -1,0 +1,598 @@
+{
+  "plan": "B050306-2022.plx",
+  "ilip_dir": "ИЛИП  с 2021 05.03.06",
+  "total_docs": 54,
+  "linked": 47,
+  "not_in_plan": 7,
+  "errors": 0,
+  "passed": 4,
+  "failed": 43,
+  "items": [
+    {
+      "file": "B1_O_01_Inostranny_yazyk_k4.doc",
+      "linked": true,
+      "code": "Б1.О.01",
+      "passed": false,
+      "failed_rules": [
+        "R018",
+        "R019",
+        "R025",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_02_Istoria_istor_Rossii_i_Vseobsch_istor_k52.doc",
+      "linked": true,
+      "code": "Б1.О.02",
+      "passed": false,
+      "failed_rules": [
+        "R004",
+        "R014",
+        "R015",
+        "R026"
+      ]
+    },
+    {
+      "file": "B1_O_03_Filosofia_k52.doc",
+      "linked": true,
+      "code": "Б1.О.03",
+      "passed": false,
+      "failed_rules": [
+        "R014",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_05_Fizkultura_k21.doc",
+      "linked": true,
+      "code": "Б1.О.05",
+      "passed": false,
+      "failed_rules": [
+        "R002",
+        "R019",
+        "R021",
+        "R027",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_06_Pravovedenie_k52.doc",
+      "linked": true,
+      "code": "Б1.О.06",
+      "passed": false,
+      "failed_rules": [
+        "R015"
+      ]
+    },
+    {
+      "file": "B1_O_08_Matematika_k13.doc",
+      "linked": true,
+      "code": "Б1.О.08",
+      "passed": true,
+      "failed_rules": []
+    },
+    {
+      "file": "B1_O_11_Osnovy_proektnoy_deyatelnosti_k51(1).doc",
+      "linked": true,
+      "code": "Б1.О.11",
+      "passed": true,
+      "failed_rules": []
+    },
+    {
+      "file": "B1_O_11_Osnovy_proektnoy_deyatelnosti_k51.doc",
+      "linked": true,
+      "code": "Б1.О.11",
+      "passed": true,
+      "failed_rules": []
+    },
+    {
+      "file": "B1_O_12_01_Obschaya_ekologia_k42.doc",
+      "linked": true,
+      "code": "Б1.О.12.01",
+      "passed": false,
+      "failed_rules": [
+        "R002",
+        "R003",
+        "R004",
+        "R015",
+        "R021",
+        "R027",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_12_02_Ekologia_cheloveka_k42.doc",
+      "linked": true,
+      "code": "Б1.О.12.02",
+      "passed": false,
+      "failed_rules": [
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_12_03_Sotsialnaya_ekologia_k42.doc",
+      "linked": true,
+      "code": "Б1.О.12.03",
+      "passed": false,
+      "failed_rules": [
+        "R004",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_12_04_Geoekologia_k42.doc",
+      "linked": true,
+      "code": "Б1.О.12.04",
+      "passed": false,
+      "failed_rules": [
+        "R014",
+        "R021",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_12_05_Okhrana_okruzhayuschey_sredy_k42.doc",
+      "linked": true,
+      "code": "Б1.О.12.05",
+      "passed": false,
+      "failed_rules": [
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_12_06_Biogeotsenologia_k42.doc",
+      "linked": true,
+      "code": "Б1.О.12.06",
+      "passed": false,
+      "failed_rules": [
+        "R014",
+        "R021",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_13_01_Uchenie_o_biosfere_k42.doc",
+      "linked": true,
+      "code": "Б1.О.13.01",
+      "passed": false,
+      "failed_rules": [
+        "R002",
+        "R003",
+        "R004",
+        "R021",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_14_01_Osnovy_prirodopolzovania_k42.doc",
+      "linked": true,
+      "code": "Б1.О.14.01",
+      "passed": false,
+      "failed_rules": [
+        "R004",
+        "R019",
+        "R021",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_14_02_Osnovy_ekologicheskoy_khimii_i_ekotoxikologii_k42.doc",
+      "linked": true,
+      "code": "Б1.О.14.02",
+      "passed": false,
+      "failed_rules": [
+        "R004",
+        "R015",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_14_03_Pravovye_osnovy_prirodopolz-ya_i_oos_k38.doc",
+      "linked": true,
+      "code": "Б1.О.14.03",
+      "passed": false,
+      "failed_rules": [
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_14_04_Otsenka_vozdeystvia_na_okruzhayuschuyu_sredu_OVOS_k42(1).doc",
+      "linked": true,
+      "code": "Б1.О.14.04",
+      "passed": false,
+      "failed_rules": [
+        "R015",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_14_04_Otsenka_vozdeystvia_na_okruzhayuschuyu_sredu_OVOS_k42.doc",
+      "linked": true,
+      "code": "Б1.О.14.04",
+      "passed": false,
+      "failed_rules": [
+        "R015",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_14_05_Ustoychivoe_razvitie_k42.doc",
+      "linked": true,
+      "code": "Б1.О.14.05",
+      "passed": false,
+      "failed_rules": [
+        "R003",
+        "R004",
+        "R014",
+        "R021",
+        "R024",
+        "R026",
+        "R027",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_14_06_Agroekologia_k42.doc",
+      "linked": true,
+      "code": "Б1.О.14.06",
+      "passed": false,
+      "failed_rules": [
+        "R004",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_O_15_Elektivnye_kursy_po_fizkulture_i_sportu_k21.doc",
+      "linked": true,
+      "code": "Б1.О.15",
+      "passed": false,
+      "failed_rules": [
+        "R002",
+        "R003",
+        "R004",
+        "R005",
+        "R027",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_02_Osnovy_sistemnogo_analiza_k13.doc",
+      "linked": true,
+      "code": "Б1.В.02",
+      "passed": false,
+      "failed_rules": [
+        "R019"
+      ]
+    },
+    {
+      "file": "B1_V_03_Upravlenie_lichnym_vremenem_k51.doc",
+      "linked": true,
+      "code": "Б1.В.03",
+      "passed": true,
+      "failed_rules": []
+    },
+    {
+      "file": "B1_V_04_Russkiy_yazyk_i_kultura_rechi_k5.doc",
+      "linked": true,
+      "code": "Б1.В.04",
+      "passed": false,
+      "failed_rules": [
+        "R014",
+        "R021",
+        "R026"
+      ]
+    },
+    {
+      "file": "B1_V_07_Anatomia_i_fiziologia_rasteniy_k42.doc",
+      "linked": true,
+      "code": "Б1.В.07",
+      "passed": false,
+      "failed_rules": [
+        "R014",
+        "R019",
+        "R021",
+        "R024",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_09_Mikrobiologia_k42.doc",
+      "linked": true,
+      "code": "Б1.В.09",
+      "passed": false,
+      "failed_rules": [
+        "R004",
+        "R021",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_12_Lesovedenie_i_lesovodstvo_k34.doc",
+      "linked": true,
+      "code": "Б1.В.12",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_13_Taxatsia_lesa_s_osnovami_l-u-va_k38.doc",
+      "linked": true,
+      "code": "Б1.В.13",
+      "passed": false,
+      "failed_rules": [
+        "R015",
+        "R020",
+        "R024",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_14_Utilizatsia_otkhodov_proizvodstva_k19.doc",
+      "linked": true,
+      "code": "Б1.В.14",
+      "passed": false,
+      "failed_rules": [
+        "R019",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_15_Ekologich_proektir_i_prirodookhr_expert_k42.doc",
+      "linked": true,
+      "code": "Б1.В.15",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_16_Kompyuternaya_grafika_k55.doc",
+      "linked": true,
+      "code": "Б1.В.16",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_17_Ekonomika_prirodopolzovania_k44.doc",
+      "linked": true,
+      "code": "Б1.В.17",
+      "passed": false,
+      "failed_rules": [
+        "R002",
+        "R003",
+        "R004",
+        "R011",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_18_01_Ekologicheskiy_monitoring_k42.doc",
+      "linked": true,
+      "code": "Б1.В.18.01",
+      "passed": false,
+      "failed_rules": [
+        "R004",
+        "R015",
+        "R019",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_18_02_Normirov_i_snizh_zagryaznen_okruzh_sredy_k42.doc",
+      "linked": true,
+      "code": "Б1.В.18.02",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_18_03_Tekhnogen_sistemy_i_ekologich_risk_k19.doc",
+      "linked": true,
+      "code": "Б1.В.18.03",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_18_04_Lesnaya_sertifikatsia_k38.doc",
+      "linked": true,
+      "code": "Б1.В.18.04",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_19_Osobo_okhranyaemye_prirodnye_territorii_k42.doc",
+      "linked": true,
+      "code": "Б1.В.19",
+      "passed": false,
+      "failed_rules": [
+        "R014",
+        "R019",
+        "R021",
+        "R024",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_20_Sistemny_analiz_i_modelirovanie_ekos-m_k38.doc",
+      "linked": true,
+      "code": "Б1.В.20",
+      "passed": false,
+      "failed_rules": [
+        "R002",
+        "R003",
+        "R004",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_21_Biologia_zverey_i_ptits_k40.doc",
+      "linked": true,
+      "code": "Б1.В.21",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_23_Pochvovedenie_k41.doc",
+      "linked": true,
+      "code": "Б1.В.23",
+      "passed": false,
+      "failed_rules": [
+        "R015",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_DV_01_01_Osnovy_prirodoobustroystva_k37.doc",
+      "linked": true,
+      "code": "Б1.В.ДВ.01.01",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_DV_01_02_Ekolog_osnovy_selsk_pr-va_k37.doc",
+      "linked": false,
+      "reason": "discipline_not_in_plan",
+      "code": "Б1.В.ДВ.01.02"
+    },
+    {
+      "file": "B1_V_DV_02_01_Lesovosstanovlenie_k37.doc",
+      "linked": true,
+      "code": "Б1.В.ДВ.02.01",
+      "passed": false,
+      "failed_rules": [
+        "R014",
+        "R015",
+        "R024",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_DV_02_02_Iskusstvennoe_vosstanovlenie_lesnykh_resursov_k41.doc",
+      "linked": false,
+      "reason": "discipline_not_in_plan",
+      "code": "Б1.В.ДВ.02.02"
+    },
+    {
+      "file": "B1_V_DV_04_01_Pravovye_osn_pos-ki_na_KU_SZiOZ_k11.doc",
+      "linked": true,
+      "code": "Б1.В.ДВ.04.01",
+      "passed": false,
+      "failed_rules": [
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B1_V_DV_05_02_Aerokosmicheskie_metody_k38.doc",
+      "linked": false,
+      "reason": "discipline_not_in_plan",
+      "code": "Б1.В.ДВ.05.02"
+    },
+    {
+      "file": "B2_O_01_U_Uch_pr_Oznakomitelnaya_botanika_35k.doc",
+      "linked": false,
+      "reason": "discipline_not_in_plan",
+      "code": "Б2.О.01"
+    },
+    {
+      "file": "B2_O_03_U_Uch_pr_Oznakomitelnaya_pochvovedenie_k41.doc",
+      "linked": false,
+      "reason": "discipline_not_in_plan",
+      "code": "Б2.О.03"
+    },
+    {
+      "file": "B2_O_04_U_Uch_pr-ka_Oznakom_pr-ka_ekologia_i_fiziologia_rasteniy_k42.doc",
+      "linked": true,
+      "code": "Б2.О.04(У)",
+      "passed": false,
+      "failed_rules": [
+        "R005",
+        "R015",
+        "R024",
+        "R028"
+      ]
+    },
+    {
+      "file": "B2_O_06_U_Uch_praktika_Oznakom_praktika_lsvsstnvlnie_lsvednie_i_lsvdstvo__taxatsia_s_osn_lesoustr_34k.doc",
+      "linked": false,
+      "reason": "discipline_not_in_plan",
+      "code": "Б2.О.06"
+    },
+    {
+      "file": "B2_O_07_P_Proizvodstvennaya_praktika_Tekhnologicheskaya_proektno-tekhnologicheskaya_praktika_k42.doc",
+      "linked": true,
+      "code": "Б2.О.07(П)",
+      "passed": false,
+      "failed_rules": [
+        "R005",
+        "R015",
+        "R024",
+        "R025",
+        "R026",
+        "R028"
+      ]
+    },
+    {
+      "file": "B2_V_01_Pd_Pr_pr_Preddiplomnaya_praktika_k42.doc",
+      "linked": false,
+      "reason": "discipline_not_in_plan",
+      "code": "Б2.В.01"
+    }
+  ],
+  "rule_failures": {
+    "R018": 1,
+    "R019": 8,
+    "R025": 2,
+    "R026": 12,
+    "R028": 39,
+    "R004": 13,
+    "R014": 9,
+    "R015": 12,
+    "R002": 6,
+    "R021": 11,
+    "R027": 4,
+    "R003": 6,
+    "R024": 25,
+    "R005": 3,
+    "R020": 1,
+    "R011": 1
+  },
+  "plan_id": "e47a9c97-1ef3-481a-b774-9911eb40947f"
+}

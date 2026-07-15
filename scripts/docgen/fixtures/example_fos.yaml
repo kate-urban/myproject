@@ -1,0 +1,36 @@
+# Эталон ФОС: B1.O.13 (09.03.02)
+strict: true
+output_filename: B1_O_13_fos_filled.docx
+
+required_placeholders:
+  - HEAD_LINE
+  - HEAD_NAME
+  - DISCIPLINE_CODE
+  - DISCIPLINE_NAME
+  - DIRECTION_CODE
+  - DIRECTION_NAME
+  - EDUCATION_LEVEL
+  - PROFILE_SPECIALIZATION
+  - DEPARTMENT_NAME
+  - APPROVAL_DATE
+  - SIGNATURE_HEAD
+
+placeholders:
+  HEAD_LINE: "Руководитель образовательной программы"
+  HEAD_NAME: "С.С. Петров"
+  DISCIPLINE_CODE: "Б1.О.13"
+  DISCIPLINE_NAME: "Технологии программирования"
+  EDUCATION_LEVEL: "уровень бакалавриата"
+  DIRECTION_CODE: "09.03.02"
+  DIRECTION_NAME: "Информационные системы и технологии"
+  PROFILE_SPECIALIZATION: "Робототехнические системы и информационные технологии"
+  DEPARTMENT_NAME: "информационных систем и технологий"
+  APPROVAL_DATE: "2021"
+
+signatures:
+  SIGNATURE_HEAD:
+    required: false
+    png_path: null
+
+defaults:
+  SIGNATURE_HEAD: ""

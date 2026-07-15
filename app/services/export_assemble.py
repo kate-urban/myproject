@@ -8,6 +8,7 @@ from docx import Document
 from docx.text.paragraph import Paragraph
 
 from app.services.export_by_headings import _HEADING_NUMBER_RE
+from app.utils.docx_repair import ensure_document_sectpr
 from app.utils.html_converter import insert_html_after_paragraph
 
 # С этого места в макете заменяем пустой «хвост» на содержимое документа.
@@ -17,11 +18,23 @@ CONTENT_START_MARKERS: dict[str, list[str]] = {
         "компетенции, формируемые",
         "программа оценивания",
         "контролируем",
+        "фонд оценочных",
     ],
     "rp": [
         "1. цель и задачи",
         "1.1. цели",
         "цель и задачи дисциплины",
+    ],
+    "rpp": [
+        "1.1. цели и задачи практики",
+        "цели и задачи практики",
+        "1.3. объем практики",
+    ],
+    "gia": [
+        "государственная итоговая атестация",
+        "1.1. общие положения",
+        "матрица компетенций",
+        "фонд тем",
     ],
     "generic": [],
 }
@@ -29,8 +42,12 @@ CONTENT_START_MARKERS: dict[str, list[str]] = {
 
 def detect_template_kind(doc: Document) -> str:
     sample = " ".join(p.text.lower() for p in doc.paragraphs[:40])
+    if "итоговая атестация" in sample or "государственная итоговая" in sample:
+        return "gia"
     if "фонд оценочных" in sample or "ф о н д" in sample:
         return "fos"
+    if "рабочая программа практики" in sample or "р п п" in sample:
+        return "rpp"
     if "рабочая программа" in sample or "р а б о ч а я" in sample:
         return "rp"
     return "generic"
@@ -85,6 +102,7 @@ def assemble_document_from_sections(
         anchor = doc.paragraphs[start_index]
 
     _truncate_body_after(anchor)
+    ensure_document_sectpr(doc)
     anchor.clear()
 
     current = anchor

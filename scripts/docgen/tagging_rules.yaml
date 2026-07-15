@@ -1,0 +1,114 @@
+# Правила авто-разметки {{TAG}} по эталонам samples/Информационные материалы
+# Порядок важен: более специфичные правила — выше.
+
+meta:
+  source_folder: samples/Информационные материалы
+  output_folder: templates/tagged
+
+# Текстовые поля титула РПД (Word)
+text_rules:
+  - id: director_line
+    tag: DIRECTOR_LINE
+    match_any:
+      - "утверждаю"
+      - "директор института"
+    match_all: false
+    replace: whole_paragraph
+
+  - id: head_line
+    tag: HEAD_LINE
+    match_any:
+      - "руководитель образовательной программы"
+      - "руководитель опоп"
+    replace: whole_paragraph
+
+  - id: discipline_code
+    tag: DISCIPLINE_CODE
+    regex: '^Б\\d\\.[ОВ]\\.\\d{2}(?:\\.\\d{2})?\\s'
+    replace: regex_group
+    group: 0
+    strip_name: true  # оставить только шифр
+
+  - id: discipline_code_bare
+    tag: DISCIPLINE_CODE
+    regex: '^Б\\d\\.[ОВ]\\.\\d{2}(?:\\.\\d{2})?$'
+    replace: whole_paragraph
+
+  - id: direction_code
+    tag: DIRECTION_CODE
+    regex: '^\\d{2}\\.\\d{2}\\.\\d{2}\\s'
+    replace: regex_group
+    strip_name: true
+
+  - id: direction_code_bare
+    tag: DIRECTION_CODE
+    regex: '^\\d{2}\\.\\d{2}\\.\\d{2}$'
+    replace: whole_paragraph
+
+  - id: profile_name_after_direction
+    tag: PROFILE_NAME
+    after_tag: DIRECTION_CODE
+    replace: whole_paragraph
+
+  - id: discipline_name_after_label
+    tag: DISCIPLINE_NAME
+    match_any:
+      - "дисциплина:"
+    replace: next_paragraph
+
+  - id: reapproval_protocol_line
+    tag: REAPPROVAL_ROWS
+    match_any:
+      - "протокол изменений"
+      - "переутвержден"
+    replace: whole_paragraph
+
+# Подписи: вставка ОТДЕЛЬНОГО абзаца с тегом ПЕРЕД строкой «(подпись)»
+signature_rules:
+  - tag: SIGNATURE_DIRECTOR
+    before_match_any:
+      - "(подпись)"
+    context_before_any:
+      - "утверждаю"
+      - "директор института"
+    lookback_paragraphs: 8
+
+  - tag: SIGNATURE_HEAD
+    before_match_any:
+      - "(подпись)"
+    context_before_any:
+      - "руководитель образовательной программы"
+      - "руководитель опоп"
+      - "согласовано"
+    lookback_paragraphs: 8
+
+  - tag: SIGNATURE_DEPT_HEAD
+    before_match_any:
+      - "(подпись)"
+    context_before_any:
+      - "заведующий кафедрой"
+    lookback_paragraphs: 6
+
+# Разделы РПД: после заголовка «N. …» — плейсхолдер контента
+section_rules:
+  heading_regex: '^\\d+(?:\\.\\d+)*[.)\\s]+.+'
+  placeholder_format: '{{{{SECTION_{heading_slug}}}}}'
+  insert_after_heading: true
+  skip_if_contains:
+    - "{{"
+    - "паспорт"
+    - "титул"
+
+# PDF переутверждение — координаты уже в reapproval_layout.yaml;
+# для docx-версии макета (если появится) — построчные теги:
+reapproval_pdf_tags:
+  note: PDF не редактируется текстом; overlay через reapproval_export.py
+  logical_tags:
+    - REAPPROVAL_ROW_1_YEAR
+    - REAPPROVAL_ROW_1_STATUS
+    - REAPPROVAL_ROW_1_DEPT
+    - REAPPROVAL_ROW_1_PROTOCOL
+    - REAPPROVAL_ROW_1_ATTACH
+    - SIGNATURE_REAPPROVAL
+    - REAPPROVAL_ROW_2_YEAR
+    - REAPPROVAL_ROW_3_YEAR

@@ -35,8 +35,14 @@ async def seed_reference_defaults(db: AsyncSession) -> None:
 
     phrase_defaults = [
         ("mto", "Материально-техническое обеспечение дисциплины соответствует требованиям программы."),
-        ("practice_annotation", "Практика направлена на формирование профессиональных компетенций обучающегося."),
-        ("gia_annotation", "Государственная итоговая аттестация завершает освоение образовательной программы."),
+        ("practice_annotation", "Практика «{discipline_name}» ({discipline_code}) направлена на формирование профессиональных компетенций обучающегося."),
+        ("gia_annotation", "Государственная итоговая аттестация завершает освоение образовательной программы по направлению {direction_code} «{direction_name}»."),
+        (
+            "discipline_annotation",
+            "Дисциплина «{discipline_name}» ({discipline_code}) входит в программу подготовки "
+            "по направлению {direction_code} «{direction_name}», профиль «{profile_name}». "
+            "Объём дисциплины — {credits} з.е.",
+        ),
     ]
     for category, text in phrase_defaults:
         exists = await db.execute(

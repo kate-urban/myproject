@@ -1,0 +1,62 @@
+# Эталон: B1.O.13 из samples/Информационные материалы (09.03.02)
+strict: true
+output_filename: B1_O_13_rpd_filled.docx
+
+required_placeholders:
+  - DIRECTOR_LINE
+  - HEAD_LINE
+  - DISCIPLINE_CODE
+  - DISCIPLINE_NAME
+  - DIRECTION_CODE
+  - DIRECTION_NAME
+  - EDUCATION_LEVEL
+  - PROFILE_SPECIALIZATION
+  - DEPARTMENT_NAME
+  - APPROVAL_DATE
+  - SIGNATURE_DIRECTOR
+  - SIGNATURE_HEAD
+  - SIGNATURE_DEPT_HEAD
+  - AUTHOR1_NAME
+  - DEPT_HEAD_DEGREE_NAME
+
+placeholders:
+  DIRECTOR_LINE: "Директор института информационных технологий и дизайна"
+  DIRECTOR_NAME: "А.А. Иванов"
+  HEAD_LINE: "Руководитель образовательной программы"
+  HEAD_NAME: "С.С. Петров"
+  DISCIPLINE_CODE: "Б1.О.13"
+  DISCIPLINE_NAME: "Технологии программирования"
+  EDUCATION_LEVEL: "уровень бакалавриата"
+  DIRECTION_CODE: "09.03.02"
+  DIRECTION_NAME: "Информационные системы и технологии"
+  # бакалавриат — профиль; магистратура — магистерская программа; ВО — направленность
+  PROFILE_SPECIALIZATION: "Робототехнические системы и информационные технологии"
+  DEPARTMENT_NAME: "информационных систем и технологий"
+  APPROVAL_DATE: "2021"
+  AUTHOR1_DEGREE: "к.т.н."
+  AUTHOR1_POSITION: "доцент"
+  AUTHOR1_NAME: "Колмогорова Светлана Сергеевна"
+  DEPT_PROTOCOL_NO: "____"
+  DEPT_PROTOCOL_DAY: "____"
+  DEPT_PROTOCOL_MONTH: "___________"
+  DEPT_PROTOCOL_YEAR: "2021"
+  DEPT_HEAD_DEGREE_NAME: "к.т.н., доцент Вагизов Марсель Равильевич"
+
+signatures:
+  SIGNATURE_DIRECTOR:
+    required: true
+    png_path: samples/Подписи/Александров.jpg
+    width_mm: 34
+  SIGNATURE_HEAD:
+    required: false
+    png_path: null
+  SIGNATURE_DEPT_HEAD:
+    required: true
+    png_path: samples/Подписи/Вагизов.jpg
+    width_mm: 34
+
+defaults:
+  SIGNATURE_HEAD: ""
+  DEPT_HEAD_LINE: ""
+  DEPT_HEAD_NAME: ""
+  REAPPROVAL_ROWS: ""

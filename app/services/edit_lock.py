@@ -121,8 +121,24 @@ async def assert_can_edit_document(
     *,
     document_id: uuid.UUID,
     user: CurrentUser,
+    program_id: uuid.UUID | None = None,
 ) -> None:
     if not EDIT_LOCKS_ENABLED:
+        return
+
+    if program_id is not None:
+        result = await db.execute(
+            select(Program).where(
+                Program.id == program_id,
+                (Program.document_id == document_id) | (Program.fos_document_id == document_id),
+            )
+        )
+        program = result.scalar_one_or_none()
+        if not program:
+            return
+        lock = await get_lock(db, "program", program.id)
+        if lock and lock.user_id != user.id:
+            raise PermissionError(f"РПД/ФОС заняты: {lock.user_display_name}")
         return
 
     result = await db.execute(
@@ -130,13 +146,14 @@ async def assert_can_edit_document(
             (Program.document_id == document_id) | (Program.fos_document_id == document_id)
         )
     )
-    program = result.scalar_one_or_none()
-    if not program:
+    programs = result.scalars().all()
+    if not programs:
         return
 
-    lock = await get_lock(db, "program", program.id)
-    if lock and lock.user_id != user.id:
-        raise PermissionError(f"РПД/ФОС заняты: {lock.user_display_name}")
+    for program in programs:
+        lock = await get_lock(db, "program", program.id)
+        if lock and lock.user_id != user.id:
+            raise PermissionError(f"РПД/ФОС заняты: {lock.user_display_name}")
 
 
 async def locks_for_program_ids(

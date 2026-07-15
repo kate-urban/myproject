@@ -21,6 +21,8 @@ EXPORT_FILL_REAPPROVAL = _flag("EXPORT_FILL_REAPPROVAL", "true")
 # true — DOCX собирается из исходного загруженного файла (инкрементально)
 # false — из макета Layout/ (по умолчанию, как на /validation)
 EXPORT_USE_ORIGINAL = _flag("EXPORT_USE_ORIGINAL", "false")
+# Перед экспортом по макету подхватить правки из templates/tagged|editable (если файл новее)
+AUTO_SYNC_USER_TEMPLATE = _flag("AUTO_SYNC_USER_TEMPLATE", "true")
 
 DEFAULT_RPD_TEMPLATE_ID = os.getenv("DEFAULT_RPD_TEMPLATE_ID", "").strip()
 DEFAULT_FOS_TEMPLATE_ID = os.getenv("DEFAULT_FOS_TEMPLATE_ID", "").strip()

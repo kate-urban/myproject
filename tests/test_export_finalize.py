@@ -45,6 +45,28 @@ def test_finalize_replaces_placeholders_in_docx(tmp_path: Path, monkeypatch: pyt
     assert "{{DIRECTOR_LINE}}" not in out.paragraphs[0].text
 
 
+def test_finalize_with_assessments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Регрессия: assessments не должны вызывать NameError при финализации."""
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("EXPORT_FILL_SIGNATURES", "false")
+    monkeypatch.setenv("EXPORT_FILL_REAPPROVAL", "false")
+
+    path = tmp_path / "t.docx"
+    doc = Document()
+    doc.add_paragraph("{{DISCIPLINE_CODE}}")
+    doc.save(path)
+
+    stats = finalize_export_docx(
+        str(path),
+        discipline_code="Б1.О.13",
+        discipline_name="Тест",
+        assessments=[SimpleNamespace(form_type="exam")],
+        apply_typography=False,
+    )
+    assert "passport_filled" in stats
+
+
 def test_r030_passes_with_years() -> None:
     from types import SimpleNamespace
 

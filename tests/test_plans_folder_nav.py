@@ -8,6 +8,7 @@ from app.services.plans_folder_nav import (
     _find_node_by_segments,
     _heuristic_folder_segments,
     _index_nodes,
+    _prune_empty_nodes,
     _scan_folder,
     plans_root,
 )
@@ -52,3 +53,31 @@ def test_find_node_by_segments() -> None:
     )
     assert node is not None
     assert node.name == "2026"
+
+
+def test_scan_skips_net_nabora_placeholder(tmp_path: Path) -> None:
+    year_dir = (
+        tmp_path / "УЧЕБНЫЕ ПЛАНЫ" / "ОЧНОЕ ОБУЧЕНИЕ" / "Бакалавры" / "ИЛБиИ" / "2026"
+    )
+    (year_dir / "Нет набора").mkdir(parents=True)
+
+    tree = _scan_folder(tmp_path / "УЧЕБНЫЕ ПЛАНЫ", tmp_path / "УЧЕБНЫЕ ПЛАНЫ")
+    index = _index_nodes(tree)
+    assert "ОЧНОЕ ОБУЧЕНИЕ/Бакалавры/ИЛБиИ/2026/Нет набора" not in index
+
+
+def test_prune_empty_nodes_hides_scaffold_years(tmp_path: Path) -> None:
+    root = tmp_path / "УЧЕБНЫЕ ПЛАНЫ"
+    for year in ("2022", "2023", "2024"):
+        (root / "ОЧНОЕ ОБУЧЕНИЕ" / "Бакалавры" / "ИЛАСиОД" / year).mkdir(
+            parents=True
+        )
+
+    tree = _scan_folder(root, root)
+    _prune_empty_nodes(tree)
+
+    institute = _find_node_by_segments(
+        _index_nodes(tree),
+        ["ОЧНОЕ ОБУЧЕНИЕ", "Бакалавры", "ИЛАСиОД"],
+    )
+    assert institute is None

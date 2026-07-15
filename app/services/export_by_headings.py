@@ -5,8 +5,10 @@ from __future__ import annotations
 import re
 
 from docx import Document
+from docx.oxml.ns import qn
 from docx.text.paragraph import Paragraph
 
+from app.utils.docx_repair import ensure_document_sectpr
 from app.utils.html_converter import insert_html_after_paragraph
 
 _HEADING_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)*)[\.)]\s*")
@@ -69,6 +71,27 @@ def _collect_headings(doc: Document) -> list[tuple[int, str, int]]:
     return headings
 
 
+def _remove_body_after(anchor: Paragraph, end_before: Paragraph | None) -> None:
+    """Удаляет абзацы и таблицы между anchor и следующим заголовком (без дублей макета)."""
+    body = anchor._element.getparent()
+    if body is None:
+        return
+    removing = False
+    to_remove = []
+    for child in list(body):
+        if child is anchor._element:
+            removing = True
+            continue
+        if child.tag == qn("w:sectPr"):
+            break
+        if end_before is not None and child is end_before._element:
+            break
+        if removing:
+            to_remove.append(child)
+    for element in to_remove:
+        body.remove(element)
+
+
 def inject_sections_by_headings(doc: Document, sections_data: dict[str, str]) -> int:
     """Вставляет HTML-содержимое разделов под подходящими заголовками макета."""
     injected = 0
@@ -96,16 +119,13 @@ def inject_sections_by_headings(doc: Document, sections_data: dict[str, str]) ->
                 end_index = next_index
                 break
 
-        content_start = anchor_index + 1
-        if content_start >= end_index:
-            anchor = doc.paragraphs[anchor_index]
-            insert_html_after_paragraph(doc, anchor, html_content)
-        else:
-            first = doc.paragraphs[content_start]
-            insert_html_after_paragraph(doc, first, html_content, replace_anchor=True)
-            for idx in range(content_start + 1, end_index):
-                doc.paragraphs[idx].clear()
+        anchor = doc.paragraphs[anchor_index]
+        end_para = doc.paragraphs[end_index] if end_index < len(doc.paragraphs) else None
+        _remove_body_after(anchor, end_para)
+        ensure_document_sectpr(doc)
+        insert_html_after_paragraph(doc, anchor, html_content)
 
         injected += 1
 
+    ensure_document_sectpr(doc)
     return injected

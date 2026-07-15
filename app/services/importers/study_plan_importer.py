@@ -67,6 +67,9 @@ def _merge_discipline_dtos(left: DisciplineDTO, right: DisciplineDTO) -> Discipl
         nesting_level=min(keep.nesting_level, other.nesting_level),
         row_order=min(keep.row_order, other.row_order),
         object_type=keep.object_type or other.object_type,
+        cycle_identifier=keep.cycle_identifier or other.cycle_identifier,
+        block_type=keep.block_type or other.block_type,
+        block_code=keep.block_code or other.block_code,
         competencies=sorted(set(keep.competencies) | set(other.competencies)),
         assessments=_merge_assessments(keep.assessments, other.assessments),
     )
@@ -289,6 +292,9 @@ class StudyPlanImporter:
                 nesting_level=item.nesting_level,
                 row_order=item.row_order,
                 object_type=item.object_type,
+                cycle_identifier=item.cycle_identifier,
+                block_type=item.block_type,
+                block_code=item.block_code,
             )
             db.add(discipline)
             await db.flush()

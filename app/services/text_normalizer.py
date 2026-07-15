@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models_tz import RefAbbreviation
 from app.services.importers.dto import DisciplineDTO, StudyPlanDTO
+from app.services.rpd_extractor import RpdExtract
 
 Rule = tuple[str, str, bool, int]
 
@@ -74,4 +75,44 @@ async def normalize_study_plan_dto(db: AsyncSession, dto: StudyPlanDTO) -> Study
             else dto.qualification
         ),
         disciplines=disciplines,
+    )
+
+
+async def normalize_rpd_extract(db: AsyncSession, rpd: RpdExtract) -> RpdExtract:
+    """Нормализация сокращений в извлечённых полях РПД (ТЗ п. P0)."""
+    rules = await load_abbreviation_rules(db)
+    if not rules:
+        return rpd
+
+    discipline_name = (
+        apply_abbreviation_rules(rpd.discipline_name, rules)
+        if rpd.discipline_name
+        else rpd.discipline_name
+    )
+    profile_name = (
+        apply_abbreviation_rules(rpd.profile_name, rules)
+        if rpd.profile_name
+        else rpd.profile_name
+    )
+    competencies = [apply_abbreviation_rules(c, rules) for c in rpd.competencies]
+    zuv_texts = [apply_abbreviation_rules(t, rules) for t in rpd.zuv_texts]
+    topic_names = {
+        key: apply_abbreviation_rules(value, rules)
+        for key, value in rpd.topic_names.items()
+    }
+    section2 = {
+        key: [apply_abbreviation_rules(item, rules) for item in items]
+        for key, items in rpd.section2_zuv_by_indicator.items()
+    }
+    topics31 = [apply_abbreviation_rules(t, rules) for t in rpd.topics31_zuv_phrases]
+
+    return replace(
+        rpd,
+        discipline_name=discipline_name,
+        profile_name=profile_name,
+        competencies=competencies,
+        zuv_texts=zuv_texts,
+        topic_names=topic_names,
+        section2_zuv_by_indicator=section2,
+        topics31_zuv_phrases=topics31,
     )

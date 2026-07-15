@@ -3,23 +3,32 @@
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import plans_auto_import, plans_delete_after_import, plans_sync_batch_size
+from app.config import (
+    plans_auto_import,
+    plans_delete_after_import,
+    plans_folder_scan_cache_seconds,
+    plans_sync_batch_size,
+)
 from app.models import Direction, PlanDiscipline, Profile, StudyPlan
 from app.services.importers import StudyPlanImporter
+from app.utils.study_plan_filters import is_test_study_plan
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_PLANS_DIR = _PROJECT_ROOT / "УЧЕБНЫЕ ПЛАНЫ"
 _MAP_PATH = Path(__file__).resolve().parents[1] / "data" / "direction_institute_map.yaml"
 
 PLAN_EXTENSIONS = {".plx", ".xlsx", ".xlsm"}
+# Пустые заглушки в структуре каталога — не показываем в дереве навигации.
+_SKIP_DIR_NAMES = frozenset({"Нет набора"})
 
 
 @dataclass
@@ -253,7 +262,56 @@ async def sync_folder_plans(db: AsyncSession) -> FolderSyncResult:
                 {"file": folder_file.relative_path, "error": str(exc)}
             )
     result.pending = max(0, len(pending) - result.imported)
+    if result.imported or result.deleted:
+        invalidate_folder_scan_cache()
     return result
+
+
+_folder_scan_cache: tuple[float, str, NavNode] | None = None
+
+
+def invalidate_folder_scan_cache() -> None:
+    global _folder_scan_cache
+    _folder_scan_cache = None
+
+
+def _clone_nav_skeleton(node: NavNode) -> NavNode:
+    return NavNode(
+        id=node.id,
+        name=node.name,
+        node_type=node.node_type,
+        children=[_clone_nav_skeleton(child) for child in node.children],
+        files=[
+            FolderFile(name=item.name, relative_path=item.relative_path)
+            for item in node.files
+        ],
+    )
+
+
+def _cached_scan_folder(root: Path) -> NavNode:
+    global _folder_scan_cache
+    ttl = plans_folder_scan_cache_seconds()
+    root_key = str(root.resolve())
+    now = time.monotonic()
+    if (
+        ttl > 0
+        and _folder_scan_cache is not None
+        and _folder_scan_cache[1] == root_key
+        and now - _folder_scan_cache[0] < ttl
+    ):
+        return _clone_nav_skeleton(_folder_scan_cache[2])
+    tree = _scan_folder(root, root)
+    if ttl > 0:
+        _folder_scan_cache = (now, root_key, tree)
+    return _clone_nav_skeleton(tree)
+
+
+async def _disciplines_count_by_plan(db: AsyncSession) -> dict[str, int]:
+    result = await db.execute(
+        select(PlanDiscipline.study_plan_id, func.count())
+        .group_by(PlanDiscipline.study_plan_id)
+    )
+    return {str(plan_id): count for plan_id, count in result.all()}
 
 
 def _scan_folder(path: Path, root: Path) -> NavNode:
@@ -268,6 +326,8 @@ def _scan_folder(path: Path, root: Path) -> NavNode:
 
     for entry in entries:
         if entry.is_dir():
+            if entry.name in _SKIP_DIR_NAMES:
+                continue
             node.children.append(_scan_folder(entry, root))
         elif entry.suffix.lower() in PLAN_EXTENSIONS:
             node.files.append(
@@ -326,15 +386,16 @@ def _attach_plan(node: NavNode, plan: NavPlan) -> None:
 async def build_plans_navigation_tree(
     db: AsyncSession,
     *,
+    sync: bool = False,
     disciplines_count: dict | None = None,
 ) -> dict:
-    sync_result = await sync_folder_plans(db)
+    sync_result = await sync_folder_plans(db) if sync else FolderSyncResult()
 
     root_path = plans_root()
     mapping = _load_mapping()
 
     if root_path.is_dir():
-        tree = _scan_folder(root_path, root_path)
+        tree = _cached_scan_folder(root_path)
     else:
         tree = NavNode(id=".", name=root_path.name, node_type="missing")
 
@@ -353,19 +414,15 @@ async def build_plans_navigation_tree(
     _strip_imported_files(tree, _imported_file_keys(plans))
 
     if disciplines_count is None:
-        disciplines_count = {}
-        count_result = await db.execute(
-            select(PlanDiscipline.study_plan_id, PlanDiscipline.id)
-        )
-        for plan_id, _ in count_result.all():
-            key = str(plan_id)
-            disciplines_count[key] = disciplines_count.get(key, 0) + 1
+        disciplines_count = await _disciplines_count_by_plan(db)
 
     orphan = NavNode(id="__orphan__", name="Прочие (не в структуре папки)", node_type="orphan")
 
     for plan in plans:
         profile: Profile = plan.profile
         direction: Direction = profile.direction
+        if is_test_study_plan(plan, direction_code=direction.code):
+            continue
         nav_plan = NavPlan(
             id=str(plan.id),
             direction_code=direction.code,
@@ -409,6 +466,8 @@ async def build_plans_navigation_tree(
     if orphan.plans:
         tree.children.append(orphan)
 
+    _prune_empty_nodes(tree)
+
     payload: dict = {
         "root": root_path.name,
         "root_exists": root_path.is_dir(),
@@ -429,6 +488,21 @@ async def build_plans_navigation_tree(
             "auto_import": plans_auto_import(),
         }
     return payload
+
+
+def _node_has_content(node: NavNode) -> bool:
+    if node.node_type == "orphan":
+        return bool(node.plans)
+    return bool(node.plans or node.files or node.children)
+
+
+def _prune_empty_nodes(node: NavNode) -> None:
+    """Убрать из дерева пустые папки без планов, файлов и вложенных узлов."""
+    if node.node_type == "orphan":
+        return
+    for child in list(node.children):
+        _prune_empty_nodes(child)
+    node.children = [child for child in node.children if _node_has_content(child)]
 
 
 def _node_to_dict(node: NavNode) -> dict:

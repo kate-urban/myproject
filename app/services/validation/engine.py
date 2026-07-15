@@ -13,6 +13,7 @@ from app.services.validation.rules import (
     RuleResult,
     ValidationContext,
 )
+from app.services.validation.waivers import apply_waivers
 
 
 @dataclass
@@ -38,7 +39,13 @@ class PlanValidationReport:
     items: list[ValidationReport]
 
 
-def _build_context(plan: StudyPlan, discipline: PlanDiscipline, rpd: RpdExtract) -> ValidationContext:
+def _build_context(
+    plan: StudyPlan,
+    discipline: PlanDiscipline,
+    rpd: RpdExtract,
+    *,
+    plan_disciplines: list[PlanDiscipline] | None = None,
+) -> ValidationContext:
     profile = plan.profile
     direction = profile.direction
     return ValidationContext(
@@ -48,6 +55,7 @@ def _build_context(plan: StudyPlan, discipline: PlanDiscipline, rpd: RpdExtract)
         discipline=discipline,
         rpd=rpd,
         plan_form=plan.form,
+        plan_disciplines=plan_disciplines,
     )
 
 
@@ -99,9 +107,17 @@ def validate_discipline(
     rpd: RpdExtract,
     *,
     rule_ids: list[str] | None = None,
+    plan_disciplines: list[PlanDiscipline] | None = None,
+    waived_rule_ids: set[str] | None = None,
 ) -> ValidationReport:
-    ctx = _build_context(plan, discipline, rpd)
+    ctx = _build_context(
+        plan,
+        discipline,
+        rpd,
+        plan_disciplines=plan_disciplines,
+    )
     results = _evaluate(ctx, rule_ids=rule_ids or DEFAULT_RULE_IDS)
+    results = apply_waivers(results, waived_rule_ids)
     return ValidationReport(
         discipline_id=discipline.id,
         discipline_code=discipline.code,
@@ -118,6 +134,8 @@ def validate_program(
     *,
     rule_ids: list[str] | None = None,
     section_texts: list[str] | None = None,
+    plan_disciplines: list[PlanDiscipline] | None = None,
+    waived_rule_ids: set[str] | None = None,
 ) -> ValidationReport:
     if program.document_id is None:
         raise ValueError("РПД не загружена (programs.document_id пуст)")
@@ -129,7 +147,14 @@ def validate_program(
     if section_texts:
         rpd = enrich_rpd_competencies(rpd, section_texts)
 
-    report = validate_discipline(plan, discipline, rpd, rule_ids=rule_ids)
+    report = validate_discipline(
+        plan,
+        discipline,
+        rpd,
+        rule_ids=rule_ids,
+        plan_disciplines=plan_disciplines,
+        waived_rule_ids=waived_rule_ids,
+    )
     report.document_id = str(program.document_id)
     return report
 
@@ -141,6 +166,7 @@ def validate_study_plan(
     rule_ids: list[str] | None = None,
     only_with_rpd: bool = True,
     section_texts_by_document: dict[str, list[str]] | None = None,
+    waivers_by_program_id: dict[str, set[str]] | None = None,
 ) -> PlanValidationReport:
     selected_rules = rule_ids or DEFAULT_RULE_IDS
     items: list[ValidationReport] = []
@@ -177,6 +203,8 @@ def validate_study_plan(
                 program,
                 rule_ids=selected_rules,
                 section_texts=section_texts,
+                plan_disciplines=disciplines,
+                waived_rule_ids=(waivers_by_program_id or {}).get(str(program.id)),
             )
         except ValueError as exc:
             missing_rpd += 1

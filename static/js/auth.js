@@ -20,6 +20,22 @@ window.SyllabusAuth = {
     return headers;
   },
 
+  isEmbed() {
+    if (window.SyllabusEmbed) return true;
+    try {
+      return window.self !== window.top;
+    } catch (_) {
+      return true;
+    }
+  },
+
+  notifyParent(type, payload = {}) {
+    if (!this.isEmbed()) return;
+    try {
+      window.parent.postMessage({ type, ...payload }, location.origin);
+    } catch (_) {}
+  },
+
   async getConfig() {
     const res = await fetch("/api/v1/workspace/config/");
     if (!res.ok) throw new Error("Не удалось загрузить настройки");
@@ -35,13 +51,24 @@ window.SyllabusAuth = {
   },
 
   async requireAuth(redirectTo = "/") {
-    const config = await this.getConfig();
-    if (!config.auth_enabled) return true;
-    const status = await this.getAuthStatus();
-    if (status.authenticated) return true;
-    this.setToken("");
-    location.href = redirectTo;
-    return false;
+    try {
+      const config = await this.getConfig();
+      if (!config.auth_enabled) return true;
+      const status = await this.getAuthStatus();
+      if (status.authenticated) return true;
+      this.setToken("");
+      if (this.isEmbed()) {
+        this.notifyParent("syllabus:auth-required");
+        return false;
+      }
+      location.href = redirectTo;
+      return false;
+    } catch (err) {
+      if (this.isEmbed()) {
+        this.notifyParent("syllabus:error", { message: err.message || "Ошибка сети" });
+      }
+      throw err;
+    }
   },
 
   async logout() {
@@ -53,6 +80,10 @@ window.SyllabusAuth = {
       }).catch(() => {});
     }
     this.setToken("");
+    if (this.isEmbed()) {
+      this.notifyParent("syllabus:logout");
+      return;
+    }
     location.href = "/";
   },
 };

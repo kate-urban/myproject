@@ -15,6 +15,7 @@ from app.services.validation.fos_rules import (
     FosValidationContext,
 )
 from app.services.validation.rules import RuleResult
+from app.services.validation.waivers import apply_waivers
 
 
 @dataclass
@@ -74,9 +75,11 @@ def validate_fos_bundle(
     fos: FosExtract,
     *,
     rule_ids: list[str] | None = None,
+    waived_rule_ids: set[str] | None = None,
 ) -> FosValidationReport:
     ctx = _build_context(plan, discipline, rpd, fos)
     results = _evaluate_fos(ctx, rule_ids=rule_ids or DEFAULT_FOS_RULE_IDS)
+    results = apply_waivers(results, waived_rule_ids)
     return FosValidationReport(
         discipline_id=discipline.id,
         discipline_code=discipline.code,
@@ -93,6 +96,7 @@ def validate_fos_only_bundle(
     fos: FosExtract,
     *,
     rule_ids: list[str] | None = None,
+    waived_rule_ids: set[str] | None = None,
 ) -> FosValidationReport:
     """Валидация ФОС ↔ УП без РПД (пропуск F004, F005, F008)."""
     stub_rpd = RpdExtract(
@@ -106,6 +110,7 @@ def validate_fos_only_bundle(
         stub_rpd,
         fos,
         rule_ids=rule_ids or DEFAULT_FOS_ONLY_RULE_IDS,
+        waived_rule_ids=waived_rule_ids,
     )
 
 
@@ -157,6 +162,7 @@ def validate_program_fos(
     program: Program,
     *,
     rule_ids: list[str] | None = None,
+    waived_rule_ids: set[str] | None = None,
 ) -> FosValidationReport:
     if program.fos_document_id is None:
         raise ValueError("ФОС не загружена (programs.fos_document_id пуст)")
@@ -166,7 +172,9 @@ def validate_program_fos(
         raise ValueError("Метаданные ФОС не извлечены — перезагрузите документ")
 
     if program.document_id is None:
-        report = validate_fos_only_bundle(plan, discipline, fos, rule_ids=rule_ids)
+        report = validate_fos_only_bundle(
+            plan, discipline, fos, rule_ids=rule_ids, waived_rule_ids=waived_rule_ids
+        )
         report.fos_document_id = str(program.fos_document_id)
         return report
 
@@ -174,7 +182,9 @@ def validate_program_fos(
     if rpd is None:
         raise ValueError("Метаданные РПД не извлечены — перезагрузите документ")
 
-    report = validate_fos_bundle(plan, discipline, rpd, fos, rule_ids=rule_ids)
+    report = validate_fos_bundle(
+        plan, discipline, rpd, fos, rule_ids=rule_ids, waived_rule_ids=waived_rule_ids
+    )
     report.rpd_document_id = str(program.document_id)
     report.fos_document_id = str(program.fos_document_id)
     return report
@@ -186,6 +196,7 @@ def validate_study_plan_fos(
     *,
     rule_ids: list[str] | None = None,
     only_with_fos: bool = True,
+    waivers_by_program_id: dict[str, set[str]] | None = None,
 ) -> FosPlanValidationReport:
     items: list[FosValidationReport] = []
     missing_fos = 0
@@ -219,6 +230,7 @@ def validate_study_plan_fos(
                 discipline,
                 program,
                 rule_ids=rule_ids,
+                waived_rule_ids=(waivers_by_program_id or {}).get(str(program.id)),
             )
         except ValueError as exc:
             missing_fos += 1

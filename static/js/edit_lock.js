@@ -3,11 +3,16 @@ window.SyllabusEditLock = {
   _token: null,
   _timer: null,
   _programId: null,
+  _onUnload: null,
 
   async acquire(programId) {
     if (!programId) return null;
     const config = await SyllabusAuth.getConfig().catch(() => ({}));
     if (!config.edit_locks_enabled) return null;
+
+    if (this._programId && String(this._programId) !== String(programId)) {
+      await this.release();
+    }
 
     const res = await fetch("/api/v1/workspace/locks/", {
       method: "POST",
@@ -26,8 +31,18 @@ window.SyllabusEditLock = {
     this._token = lock.token;
     this._programId = programId;
     this._startHeartbeat();
-    window.addEventListener("beforeunload", this._releaseOnUnload);
+    this._bindUnload();
     return lock;
+  },
+
+  _bindUnload() {
+    if (!this._onUnload) {
+      this._onUnload = () => this._releaseOnUnload();
+    }
+    window.removeEventListener("beforeunload", this._onUnload);
+    window.removeEventListener("pagehide", this._onUnload);
+    window.addEventListener("beforeunload", this._onUnload);
+    window.addEventListener("pagehide", this._onUnload);
   },
 
   _startHeartbeat() {
@@ -43,10 +58,9 @@ window.SyllabusEditLock = {
 
   _releaseOnUnload() {
     if (!SyllabusEditLock._token) return;
-    const headers = SyllabusAuth.authHeaders();
     fetch(`/api/v1/workspace/locks/${SyllabusEditLock._token}/`, {
       method: "DELETE",
-      headers,
+      headers: SyllabusAuth.authHeaders(),
       keepalive: true,
     }).catch(() => {});
   },
@@ -56,7 +70,10 @@ window.SyllabusEditLock = {
       clearInterval(this._timer);
       this._timer = null;
     }
-    window.removeEventListener("beforeunload", this._releaseOnUnload);
+    if (this._onUnload) {
+      window.removeEventListener("beforeunload", this._onUnload);
+      window.removeEventListener("pagehide", this._onUnload);
+    }
     const token = this._token;
     this._token = null;
     this._programId = null;

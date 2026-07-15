@@ -1,0 +1,47 @@
+# Координаты overlay (pt) — этalon: samples/Информационные материалы/*.pdf
+rows:
+  - year_y: 133.3
+    status_y: 161.5
+    dept_y: 181.2
+    proto_y: 231.3
+    attach_y: 259.8
+    sign_y: 290.1
+  - year_y: 342.6
+    status_y: 370.4
+    dept_y: 388.5
+    proto_y: 436.8
+    attach_y: 470.6
+    sign_y: 500.8
+  - year_y: 555.2
+    status_y: 584.7
+    dept_y: 602.8
+    proto_y: 651.2
+    attach_y: 682.8
+    sign_y: 711.3
+
+# [x0, y_offset_from_anchor, x1, height] — whiteout + text anchor
+year_rect: [190, -4, 395, 18]
+status_rect: [278, -4, 490, 18]
+dept_rect: [205, -4, 340, 18]
+
+protocol_no: [165.6, 13]
+protocol_day: [221.6, 13]
+protocol_month: [309.5, 13]
+protocol_year: [390.0, 13]
+protocol_whiteout: [160, -4, 445, 18]
+
+attach_year_a: [236.9, 13]
+attach_year_b: [283.2, 13]
+attach_whiteout: [230, -4, 325, 18]
+
+sign_name_line_x0: 380.6
+sign_name_line_x1: 493.3
+sign_line_y_offset: 16.5
+sign_line_x0: 230.6
+sign_line_x1: 328.2
+# PNG над чертой «(подпись)»: ширина/высота в мм, зазор над линией (pt)
+sign_image_width_mm: 34
+sign_image_height_mm: 24
+sign_image_gap_pt: 1.5
+sign_image_min_attach_gap_pt: 18
+sign_name_baseline_offset: -3.5

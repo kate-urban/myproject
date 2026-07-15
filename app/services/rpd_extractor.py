@@ -21,6 +21,22 @@ INDICATOR_CODE_RE = re.compile(r"(?:УК|ОПК|ПК|ПСК)-\d+\.\d+", re.IGNOR
 COMPETENCY_GROUP_RE = re.compile(r"((?:УК|ОПК|ПК|ПСК)-\d+)", re.IGNORECASE)
 _UNICODE_DASHES = ("\u2013", "\u2014", "\u2212", "\u2011")
 DEPT_FROM_FILENAME_RE = re.compile(r"_k(\d+)", re.IGNORECASE)
+AUTHOR_LABEL_RE = re.compile(r"фио\s+автора", re.IGNORECASE)
+FIO_SHORT_RE = re.compile(
+    r"(?<![А-Яа-яёA-Za-z])([А-ЯЁ][а-яё\-]+)\s+([А-ЯЁ])\.\s*([А-ЯЁ])\.?(?![А-Яа-яёA-Za-z])"
+)
+FIO_FULL_RE = re.compile(
+    r"(?<![А-Яа-яёA-Za-z])([А-ЯЁ][а-яё\-]+)\s+([А-ЯЁ][а-яё]+)\s+([А-ЯЁ][а-яё]+)(?![А-Яа-яёA-Za-z])"
+)
+DEGREE_PREFIX_RE = re.compile(
+    r"(?:доц\.?|проф\.?|ст\.?\s*преп\.?|ассист\.?|зав\.?\s*каф\.?|"
+    r"к\.(?:ф|т|п|э|б|х|с)\.?\s*н\.?|д\.(?:ф|т|э|х|с)\.?\s*н\.?)\s*,?\s*",
+    re.IGNORECASE,
+)
+_SKIP_AUTHOR_ROW_RE = re.compile(
+    r"утвержда|согласовано|заведующ|руководител|проверено|директор|опоп",
+    re.IGNORECASE,
+)
 
 
 def normalize_competency_text(text: str) -> str:
@@ -88,6 +104,11 @@ class VolumeBreakdown:
     has_course_work: bool = False
     course_project_hours: int | None = None
     course_work_hours: int | None = None
+    contact_not_in_plan: bool = False
+    lectures_not_in_plan: bool = False
+    practical_not_in_plan: bool = False
+    lab_not_in_plan: bool = False
+    sr_not_in_plan: bool = False
 
 
 @dataclass
@@ -109,6 +130,7 @@ class RpdExtract:
     topics_contact_hours: int | None = None
     topics_lecture_hours: int | None = None
     topics_practical_hours: int | None = None
+    topics_lab_hours: int | None = None
     sr_table_total: int | None = None
     course_project_hours: int | None = None
     sr_has_current_control: bool = False
@@ -135,6 +157,9 @@ class RpdExtract:
     matrix_36_col_totals: dict[str, int | None] = field(default_factory=dict)
     pk_indicators_without_group: list[str] = field(default_factory=list)
     pk_groups_ok: bool | None = None
+    authors: list[str] = field(default_factory=list)
+    passport_text_quality: str | None = None
+    passport_needs_manual: bool = False
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -156,8 +181,11 @@ class RpdExtract:
             ("matrix_36_rows", []),
             ("matrix_36_col_totals", {}),
             ("pk_indicators_without_group", []),
+            ("authors", []),
         ):
             data.setdefault(key, default)
+        data.setdefault("passport_text_quality", None)
+        data.setdefault("passport_needs_manual", False)
         data.setdefault("sr_has_homework_control", False)
         data.setdefault("topics31_has_flag_columns", False)
         data.setdefault("topics31_assessments", [])
@@ -193,14 +221,14 @@ def _classify_table(header: str, second_row: str = "") -> str:
         return "volume_13"
     if "темы (разделы)" in full or "темы(разделы)" in full:
         return "topics_31"
-    if _has_topic_marker(full) and (
-        "лек" in second_row or "практ" in second_row or "лаб" in second_row
-    ):
-        return "topics_detail"
     if "этап" in full and "практик" in full:
         return "topics_practice"
     if "компетенц" in full:
         return "competencies"
+    if _has_topic_marker(full) and (
+        "лек" in second_row or "практ" in second_row or "лаб" in second_row
+    ):
+        return "topics_detail"
     if "самостоятельной работы" in full and "трудо" in full:
         return "sr_35"
     if "согласовано" in full or "утвержда" in full:
@@ -242,6 +270,48 @@ def _first_form_hours(cells: list[str]) -> int | None:
     return None
 
 
+NOT_IN_PLAN_RE = re.compile(
+    r"не\s+предусмотрен\w*\s+(?:"
+    r"учебным\s+планом|"
+    r"планом\s+обучения|"
+    r"уч\.?\s*планом"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_not_in_plan_text(text: str | None) -> bool:
+    if not text:
+        return False
+    cleaned = text.replace("\n", " ").strip()
+    if not cleaned:
+        return False
+    if NOT_IN_PLAN_RE.search(cleaned):
+        return True
+    lowered = cleaned.lower()
+    return (
+        "не предусмотрен" in lowered
+        and "план" in lowered
+        and ("учебн" in lowered or "уч." in lowered or "уч " in lowered)
+    )
+
+
+def _volume_row_label(cells: list[str]) -> str:
+    if not cells:
+        return ""
+    first = cells[0].strip()
+    if re.match(r"^\d+\.?\s*$", first.replace(" ", "")) and len(cells) > 1:
+        return cells[1].lower().replace("\n", " ")
+    return first.lower().replace("\n", " ")
+
+
+def _read_form_hours(cells: list[str]) -> tuple[int | None, bool]:
+    for cell in cells[1:]:
+        if _is_not_in_plan_text(cell):
+            return None, True
+    return _first_form_hours(cells), False
+
+
 def _extract_volume_13(doc: Document) -> tuple[int | None, float | None, VolumeBreakdown]:
     volume = VolumeBreakdown()
     hours_total: int | None = None
@@ -263,11 +333,13 @@ def _extract_volume_13(doc: Document) -> tuple[int | None, float | None, VolumeB
             cells = [cell.text.strip() for cell in row.cells]
             if not cells:
                 continue
-            label = cells[0].lower().replace("\n", " ")
-            value = _first_form_hours(cells)
+            label = _volume_row_label(cells)
+            value, not_in_plan = _read_form_hours(cells)
 
             if label.strip().startswith("всего") or "всего по дисциплин" in label:
                 for cell in cells[1:]:
+                    if _is_not_in_plan_text(cell):
+                        break
                     parsed_hours, parsed_credits = _parse_hours_credits_cell(cell)
                     if parsed_hours is not None:
                         hours_total = parsed_hours
@@ -276,16 +348,36 @@ def _extract_volume_13(doc: Document) -> tuple[int | None, float | None, VolumeB
                         break
                 continue
 
-            if "контакт" in label and value is not None:
-                volume.contact = value
+            if "контакт" in label:
+                if not_in_plan:
+                    volume.contact_not_in_plan = True
+                    volume.contact = None
+                elif value is not None:
+                    volume.contact = value
             elif "лекц" in label:
-                volume.lectures = value
+                if not_in_plan:
+                    volume.lectures_not_in_plan = True
+                    volume.lectures = None
+                else:
+                    volume.lectures = value
             elif "практическ" in label or "семинар" in label:
-                volume.practical = value
+                if not_in_plan:
+                    volume.practical_not_in_plan = True
+                    volume.practical = None
+                else:
+                    volume.practical = value
             elif "лабор" in label:
-                volume.lab = value
-            elif "самостоятель" in label and value is not None:
-                volume.sr = value
+                if not_in_plan:
+                    volume.lab_not_in_plan = True
+                    volume.lab = None
+                else:
+                    volume.lab = value
+            elif "самостоятель" in label:
+                if not_in_plan:
+                    volume.sr_not_in_plan = True
+                    volume.sr = None
+                elif value is not None:
+                    volume.sr = value
             elif label.startswith("контроль") or (
                 "контроль" in label and "текущ" not in label and value is not None
             ):
@@ -468,9 +560,10 @@ def _extract_zuv_texts(doc: Document) -> list[str]:
     return texts
 
 
-def _topic_column_indices(table) -> tuple[int | None, int | None]:
+def _topic_column_indices(table) -> tuple[int | None, int | None, int | None]:
     lec_idx: int | None = None
     prac_idx: int | None = None
+    lab_idx: int | None = None
     for row in table.rows[:3]:
         for idx, cell in enumerate(row.cells):
             label = cell.text.lower().replace("\n", " ").replace("-", "")
@@ -478,7 +571,9 @@ def _topic_column_indices(table) -> tuple[int | None, int | None]:
                 lec_idx = idx
             if prac_idx is None and ("практ" in label or "семинар" in label):
                 prac_idx = idx
-    return lec_idx, prac_idx
+            if lab_idx is None and "лабор" in label:
+                lab_idx = idx
+    return lec_idx, prac_idx, lab_idx
 
 
 def _row_label(cells: list[str]) -> str:
@@ -488,8 +583,8 @@ def _row_label(cells: list[str]) -> str:
 def _extract_topics_hours(
     doc: Document,
     volume: VolumeBreakdown,
-) -> tuple[int | None, int | None, int | None]:
-    best: tuple[int | None, int | None, int | None] | None = None
+) -> tuple[int | None, int | None, int | None, int | None]:
+    best: tuple[int | None, int | None, int | None, int | None] | None = None
     best_score = -1
 
     for table in doc.tables:
@@ -501,8 +596,8 @@ def _extract_topics_hours(
         if kind not in {"topics_detail", "topics_31", "topics_practice"}:
             continue
 
-        lec_idx, prac_idx = _topic_column_indices(table)
-        if lec_idx is not None or prac_idx is not None:
+        lec_idx, prac_idx, lab_idx = _topic_column_indices(table)
+        if lec_idx is not None or prac_idx is not None or lab_idx is not None:
             for row in table.rows[2:]:
                 cells = [cell.text.strip() for cell in row.cells]
                 if len(cells) < 2:
@@ -514,15 +609,16 @@ def _extract_topics_hours(
                     continue
                 lectures = _parse_int_cell(cells[lec_idx]) if lec_idx is not None else None
                 practical = _parse_int_cell(cells[prac_idx]) if prac_idx is not None else None
-                if lectures is None and practical is None:
+                lab = _parse_int_cell(cells[lab_idx]) if lab_idx is not None else None
+                if lectures is None and practical is None and lab is None:
                     continue
-                contact = (lectures or 0) + (practical or 0)
+                contact = (lectures or 0) + (practical or 0) + (lab or 0)
                 score = contact
                 if volume.contact is not None and contact == volume.contact:
                     score += 1000
                 if score > best_score:
                     best_score = score
-                    best = (contact, lectures, practical)
+                    best = (contact, lectures, practical, lab)
             continue
 
         total: int | None = None
@@ -549,9 +645,9 @@ def _extract_topics_hours(
             elif total is None:
                 total = parsed
         if total is not None and (best is None or total > (best[0] or 0)):
-            best = (total, total, None)
+            best = (total, total, None, None)
 
-    return best or (None, None, None)
+    return best or (None, None, None, None)
 
 
 def _extract_sr_table(
@@ -695,6 +791,94 @@ def _department_from_filename(filename: str) -> str | None:
     return match.group(1) if match else None
 
 
+def format_author_short(name: str) -> str:
+    """Приводит ФИО к формату «Фамилия И.О.» (как в отчётах 7.1/7.2)."""
+    cleaned = " ".join(name.split())
+    if not cleaned:
+        return ""
+    match = FIO_SHORT_RE.search(cleaned)
+    if match:
+        return f"{match.group(1)} {match.group(2)}.{match.group(3)}."
+    match = FIO_FULL_RE.search(cleaned)
+    if match:
+        return f"{match.group(1)} {match.group(2)[0]}.{match.group(3)[0]}."
+    return cleaned
+
+
+def _names_from_text(text: str) -> list[str]:
+    if not text or _SKIP_AUTHOR_ROW_RE.search(text):
+        return []
+    stripped = DEGREE_PREFIX_RE.sub("", text).strip(" ,;")
+    if not stripped or len(stripped) < 4:
+        return []
+    names: list[str] = []
+    for part in re.split(r"[\n;/]+", stripped):
+        part = part.strip(" ,;")
+        if not part or len(part) < 4:
+            continue
+        for match in FIO_SHORT_RE.finditer(part):
+            names.append(format_author_short(match.group(0)))
+        if not FIO_SHORT_RE.search(part):
+            for match in FIO_FULL_RE.finditer(part):
+                names.append(format_author_short(match.group(0)))
+    return names
+
+
+def _extract_authors(doc: Document) -> list[str]:
+    """Извлекает «ФИО автора РП и ФОС» из паспортных таблиц DOCX."""
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def add(name: str) -> None:
+        short = format_author_short(name)
+        if not short:
+            return
+        key = short.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(short)
+
+    for table in doc.tables[:12]:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells]
+            if not any(cells):
+                continue
+            row_joined = " ".join(cells)
+            if _SKIP_AUTHOR_ROW_RE.search(row_joined) and not AUTHOR_LABEL_RE.search(row_joined):
+                continue
+
+            for idx, cell in enumerate(cells):
+                if AUTHOR_LABEL_RE.search(cell):
+                    for value in cells[idx + 1 :]:
+                        for name in _names_from_text(value):
+                            add(name)
+                    break
+
+            role_markers = ("доцент", "ст. преп", "ст.преп", "проф.", "ассист", "преподав")
+            if any(marker in row_joined.lower() for marker in role_markers):
+                if re.match(r"^\d+\.?\s*$", cells[0].replace(" ", "")):
+                    for cell in cells[1:]:
+                        for name in _names_from_text(cell):
+                            add(name)
+
+            for cell in cells:
+                if AUTHOR_LABEL_RE.search(cell):
+                    continue
+                for name in _names_from_text(cell):
+                    if any(marker in row_joined.lower() for marker in role_markers):
+                        add(name)
+
+    return found
+
+
+def authors_to_cell(authors: list[str] | None) -> str:
+    """Многострочная ячейка Excel для колонки «Автор»."""
+    if not authors:
+        return ""
+    return "\n".join(format_author_short(name) for name in authors if name.strip())
+
+
 def extract_rpd(file_bytes: bytes, filename: str = "upload.docx") -> RpdExtract:
     doc = Document(io.BytesIO(file_bytes))
     passport = extract_passport_from_docx(file_bytes)
@@ -714,12 +898,13 @@ def extract_rpd(file_bytes: bytes, filename: str = "upload.docx") -> RpdExtract:
     if direction_match:
         direction_code = direction_match.group(1)
 
-    topics_contact, topics_lectures, topics_practical = _extract_topics_hours(doc, volume)
+    topics_contact, topics_lectures, topics_practical, topics_lab = _extract_topics_hours(doc, volume)
 
     from app.services.rpd_extract_tz import extract_tz_fields, merge_tz_into_rpd_dict
 
     discipline_name = _discipline_name_from_passport(passport)
     tz = extract_tz_fields(doc, discipline_name)
+    authors = _extract_authors(doc)
     result = RpdExtract(
         discipline_code=code,
         discipline_name=discipline_name,
@@ -738,13 +923,71 @@ def extract_rpd(file_bytes: bytes, filename: str = "upload.docx") -> RpdExtract:
         topics_contact_hours=topics_contact,
         topics_lecture_hours=topics_lectures,
         topics_practical_hours=topics_practical,
+        topics_lab_hours=topics_lab,
         sr_table_total=sr_total,
         course_project_hours=course_project_hours,
         sr_has_current_control=sr_current,
         sr_has_practical_exercises=sr_practical,
         zuv_texts=_extract_zuv_texts(doc),
+        authors=authors,
     )
     base = asdict(result)
     merge_tz_into_rpd_dict(base, tz)
     volume_data = base.pop("volume", {}) or {}
     return RpdExtract(volume=VolumeBreakdown(**volume_data), **base)
+
+
+def extract_rpd_from_pdf(file_bytes: bytes, filename: str = "upload.pdf") -> RpdExtract:
+    """Извлечение паспорта РПД из PDF (legacy); OCR fallback при плохом текстовом слое."""
+    import fitz
+
+    from app.services.pdf_ocr import extract_text_from_pdf_ocr, ocr_available
+    from app.services.pdf_quality import assess_pdf_text_quality
+    from app.utils.discipline_code import code_from_filename
+
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    text = "\n".join(page.get_text() for page in doc)
+    quality = assess_pdf_text_quality(text)
+    ocr_used = False
+
+    if quality.get("needs_manual_passport") and ocr_available():
+        ocr_text = extract_text_from_pdf_ocr(file_bytes)
+        if ocr_text.strip():
+            text = ocr_text
+            quality = assess_pdf_text_quality(text)
+            quality["ocr_used"] = True
+            ocr_used = True
+
+    code = code_from_filename(filename)
+    if not code:
+        codes = DISCIPLINE_CODE_RE.findall(text)
+        code = max(codes, key=len) if codes else None
+
+    credits = None
+    match = re.search(r"(\d+(?:[.,]\d+)?)\s*з\.?\s*е", text, re.IGNORECASE)
+    if match:
+        credits = float(match.group(1).replace(",", "."))
+
+    authors: list[str] = []
+    for line in text.splitlines():
+        if AUTHOR_LABEL_RE.search(line):
+            authors.extend(_names_from_text(line.split(":", 1)[-1]))
+
+    direction_code = None
+    direction_match = DIRECTION_CODE_RE.search(text)
+    if direction_match:
+        direction_code = direction_match.group(1)
+
+    passport_quality = str(quality.get("quality"))
+    if ocr_used and not quality.get("needs_manual_passport"):
+        passport_quality = "ocr"
+
+    return RpdExtract(
+        discipline_code=code,
+        direction_code=direction_code,
+        department_code=_department_from_filename(filename),
+        credits=credits,
+        authors=authors,
+        passport_text_quality=passport_quality,
+        passport_needs_manual=bool(quality.get("needs_manual_passport")),
+    )

@@ -6,7 +6,9 @@ from docx import Document as DocxDocument
 
 from app.services.export_assemble import assemble_document_from_sections, detect_template_kind
 from app.services.export_by_headings import inject_sections_by_headings
+from app.services.export_incremental import changed_sections_for_export
 from app.services.template_manager import get_template_path
+from app.utils.docx_repair import ensure_document_sectpr
 from app.utils.html_converter import html_to_docx_elements
 
 
@@ -21,6 +23,8 @@ class Exporter:
         sections_order: list[str] | None = None,
         doc_type: str | None = None,
         template_name: str | None = None,
+        source_path: str | None = None,
+        incremental: bool = True,
     ) -> tuple[str, dict]:
         template_path = await get_template_path(template_id)
         if not template_path or not os.path.exists(template_path):
@@ -32,8 +36,27 @@ class Exporter:
         ordered_sections = Exporter._ordered_sections(sections_data, sections_order)
 
         def _sync_export():
+            use_original = bool(source_path and os.path.isfile(source_path))
+            if use_original:
+                shutil.copy2(source_path, output_path)
+                doc = DocxDocument(output_path)
+                payload = sections_data
+                if incremental:
+                    payload = changed_sections_for_export(source_path, sections_data)
+                heading_hits = inject_sections_by_headings(doc, payload)
+                doc.save(output_path)
+                return {
+                    "placeholders": 0,
+                    "injected": heading_hits,
+                    "assembled": 0,
+                    "mode": "original",
+                    "sections_total": len(ordered_sections),
+                    "sections_changed": len(payload),
+                }
+
             shutil.copy2(template_path, output_path)
             doc = DocxDocument(output_path)
+            ensure_document_sectpr(doc)
 
             placeholder_hits = Exporter._replace_placeholders(doc, sections_data)
             heading_hits = 0

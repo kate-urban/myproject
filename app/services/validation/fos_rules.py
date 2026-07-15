@@ -35,7 +35,7 @@ FOS_RPD_RULE_IDS = [
 
 DEFAULT_FOS_ONLY_RULE_IDS = FOS_UP_RULE_IDS
 
-DEFAULT_FOS_RULE_IDS = FOS_UP_RULE_IDS + FOS_RPD_RULE_IDS
+DEFAULT_FOS_RULE_IDS = FOS_UP_RULE_IDS + FOS_RPD_RULE_IDS + ["F015"]
 
 _PROFILE_BOILERPLATE_RE = re.compile(
     r"^(направленность\s*\(?\s*профиль\s*\)?|профиль|направление\s*подготовки)$",
@@ -403,6 +403,40 @@ def rule_f014(ctx: FosValidationContext) -> RuleResult:
     )
 
 
+def rule_f015(ctx: FosValidationContext) -> RuleResult:
+    """F015: вариант ФОС (1=дисциплина/FOSd, 2=практика/FOSp) согласован с типом дисциплины."""
+    variant = ctx.fos.fos_variant
+    if variant is None:
+        return RuleResult(
+            rule_id="F015",
+            name="Вариант ФОС согласован с типом программы",
+            passed=True,
+            skipped=True,
+            message="Вариант ФОС не определён — проверка пропущена",
+        )
+    from app.utils.discipline_bucket import classify_discipline_bucket
+
+    bucket = classify_discipline_bucket(
+        code=ctx.discipline.code,
+        name=ctx.discipline.name,
+        object_type=getattr(ctx.discipline, "object_type", None),
+    )
+    expected = 2 if bucket == "practices" else 1
+    passed = variant == expected
+    return RuleResult(
+        rule_id="F015",
+        name="Вариант ФОС согласован с типом программы",
+        passed=passed,
+        message=(
+            f"Вариант {variant} соответствует типу"
+            if passed
+            else f"Ожидался вариант {expected} ({'FOSp' if expected == 2 else 'FOSd'}), найден {variant}"
+        ),
+        expected=str(expected),
+        actual=str(variant),
+    )
+
+
 FOS_RULES: list[tuple[str, RuleFn]] = [
     ("F001", rule_f001),
     ("F002", rule_f002),
@@ -418,4 +452,5 @@ FOS_RULES: list[tuple[str, RuleFn]] = [
     ("F012", rule_f012),
     ("F013", rule_f013),
     ("F014", rule_f014),
+    ("F015", rule_f015),
 ]

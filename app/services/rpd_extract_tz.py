@@ -16,7 +16,8 @@ from app.services.rpd_extractor import (
     _parse_int_cell,
 )
 
-ZUV_MARKER_RE = re.compile(r"(знать|уметь|владеть)\s*:", re.IGNORECASE)
+ZUV_MARKER_RE = re.compile(r"(знать|уметь|владеть)\s*[:\n]", re.IGNORECASE)
+ZUV_MARKER_LOOSE_RE = re.compile(r"(?:^|[\n;\s])(знать|уметь|владеть)\b", re.IGNORECASE)
 QUESTION_NUM_RE = re.compile(r"^(\d+)\.(\d+)\.?\s*")
 TOPIC_NUM_RE = re.compile(r"^(\d+)\.?\s*")
 PLUS_MINUS_RE = re.compile(r"^[+\−\-–—]|^(?:есть|нет|да|нет\b)", re.IGNORECASE)
@@ -35,7 +36,9 @@ class TzExtract:
     topic_numbers: list[int] = field(default_factory=list)
     topic_names: dict[int, str] = field(default_factory=dict)
     sr_rows: list[dict] = field(default_factory=list)
+    sr_has_current_control: bool = False
     sr_has_homework_control: bool = False
+    sr_table_total_from_rows: int | None = None
     sr_control_work_hours: int | None = None
     sr_course_work_hours_35: int | None = None
     sr_course_project_hours_35: int | None = None
@@ -49,24 +52,35 @@ class TzExtract:
 
 
 def _normalize_phrase(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip().lower())
+    cleaned = text.strip().lower()
+    cleaned = re.sub(r"[\u2013\u2014\u2212\-–—]", "-", cleaned)
+    cleaned = re.sub(r"[;:,.!?«»\"\"„\"()]", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip(" -")
+
+
+def _has_zuv_markers(text: str) -> bool:
+    return bool(ZUV_MARKER_LOOSE_RE.search(text))
 
 
 def _split_zuv_phrases(text: str) -> list[str]:
     """Разбить текст З/У/В на отдельные формулировки."""
     if not text.strip():
         return []
-    parts: list[str] = []
-    markers = list(ZUV_MARKER_RE.finditer(text))
+    markers = list(
+        re.finditer(r"(?im)(знать|уметь|владеть)\s*[:\n]?\s*", text)
+    )
     if not markers:
+        if _has_zuv_markers(text):
+            return [_normalize_phrase(text)]
         return [_normalize_phrase(text)] if text.strip() else []
 
+    parts: list[str] = []
     for idx, match in enumerate(markers):
         start = match.end()
         end = markers[idx + 1].start() if idx + 1 < len(markers) else len(text)
-        chunk = text[start:end].strip(" ;,")
+        chunk = text[start:end].strip(" ;,\n")
         if chunk:
-            parts.append(_normalize_phrase(chunk))
+            parts.append(_normalize_phrase(f"{match.group(1).lower()}: {chunk}"))
     return parts
 
 
@@ -79,11 +93,48 @@ def _row_relevant_for_discipline(row_text: str, discipline_name: str | None) -> 
     if not discipline_name:
         return True
     lowered = row_text.lower()
-    if discipline_name.lower() not in lowered:
-        other_markers = ("гидромелиора", "почвовед", "дисциплин")
-        if any(m in lowered for m in other_markers) and ";" in row_text:
-            return False
+    name = discipline_name.lower().strip()
+    stem = name[: max(5, min(len(name), 8))]
+    if name in lowered or stem in lowered:
+        return True
+    if ";" in row_text and any(
+        marker in lowered for marker in ("других дисциплин", "иной дисциплин", "гидромелиора", "почвовед")
+    ):
+        return False
     return True
+
+
+_ZUV_LEADING_CODES_RE = re.compile(
+    r"^((?:ук|опк|пк|пск)[\s-]*\d+(?:\.\d+)?[\s:.,-]*)+",
+    re.IGNORECASE,
+)
+_ZUV_TRAILING_CODES_RE = re.compile(
+    r"(?:\s*(?:ук|опк|пк|пск)[\s-]*(?:\d+[\s.-]*)?[\d.]*)+$",
+    re.IGNORECASE,
+)
+
+
+def _clean_zuv_phrase(text: str) -> str:
+    cleaned = text.strip().lstrip("-: ")
+    cleaned = _ZUV_LEADING_CODES_RE.sub("", cleaned)
+    cleaned = re.sub(r"\b(?:ук|опк|пк|пск)[\s-]*\d+(?:\.\d+)?\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = _ZUV_TRAILING_CODES_RE.sub("", cleaned)
+    return _normalize_phrase(cleaned)
+
+
+def _competency_table_columns(table) -> tuple[int | None, int | None]:
+    zuv_col: int | None = None
+    indicator_col: int | None = None
+    for row in table.rows[:2]:
+        for idx, cell in enumerate(row.cells):
+            label = cell.text.lower().replace("\n", " ")
+            if "результат" in label and "обучен" in label:
+                zuv_col = idx
+            if "индикатор" in label:
+                indicator_col = idx
+    if zuv_col is None and table.rows and len(table.rows[0].cells) >= 3:
+        zuv_col = len(table.rows[0].cells) - 1
+    return zuv_col, indicator_col
 
 
 def _extract_section2_zuv(doc: Document, discipline_name: str | None) -> dict[str, list[str]]:
@@ -99,14 +150,26 @@ def _extract_section2_zuv(doc: Document, discipline_name: str | None) -> dict[st
         )
         if _classify_table(header, second) != "competencies":
             continue
+        zuv_col, indicator_col = _competency_table_columns(table)
+        if zuv_col is None:
+            continue
         for row in table.rows[1:]:
-            row_text = " ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
-            if not row_text or not ZUV_MARKER_RE.search(row_text):
+            cells = [cell.text.strip() for cell in row.cells]
+            if zuv_col >= len(cells):
                 continue
-            if not _row_relevant_for_discipline(row_text, discipline_name):
+            zuv_text = cells[zuv_col]
+            if not zuv_text or not _has_zuv_markers(zuv_text):
                 continue
-            codes = _indicator_codes_in_text(row_text)
-            phrases = _split_zuv_phrases(row_text)
+            if not _row_relevant_for_discipline(zuv_text, discipline_name):
+                continue
+            indicator_text = (
+                cells[indicator_col]
+                if indicator_col is not None and indicator_col < len(cells)
+                else ""
+            )
+            codes = _indicator_codes_in_text(indicator_text) or _indicator_codes_in_text(zuv_text)
+            phrases = [_clean_zuv_phrase(p) for p in _split_zuv_phrases(zuv_text)]
+            phrases = [p for p in phrases if p]
             if not phrases:
                 continue
             if codes:
@@ -148,23 +211,25 @@ def _extract_topics31_zuv(doc: Document) -> list[str]:
         if zuv_col is None:
             for row in table.rows[1:]:
                 row_text = " ".join(c.text.strip() for c in row.cells if c.text.strip())
-                if ZUV_MARKER_RE.search(row_text):
+                if _has_zuv_markers(row_text):
                     for phrase in _split_zuv_phrases(row_text):
-                        if phrase not in seen:
-                            seen.add(phrase)
-                            phrases.append(phrase)
+                        cleaned = _clean_zuv_phrase(phrase)
+                        if cleaned and cleaned not in seen:
+                            seen.add(cleaned)
+                            phrases.append(cleaned)
             continue
-        for row in table.rows[2:]:
+        for row in table.rows[1:]:
             cells = [c.text.strip() for c in row.cells]
             if zuv_col >= len(cells):
                 continue
             cell_text = cells[zuv_col]
-            if not ZUV_MARKER_RE.search(cell_text):
+            if not _has_zuv_markers(cell_text):
                 continue
             for phrase in _split_zuv_phrases(cell_text):
-                if phrase not in seen:
-                    seen.add(phrase)
-                    phrases.append(phrase)
+                cleaned = _clean_zuv_phrase(phrase)
+                if cleaned and cleaned not in seen:
+                    seen.add(cleaned)
+                    phrases.append(cleaned)
     return phrases
 
 
@@ -244,11 +309,15 @@ def _extract_topic_summaries(doc: Document) -> tuple[list[int], dict[int, str]]:
         )
         kind = _classify_table(header, second)
         if kind not in {"topics_31", "topics_detail", "matrix_36"}:
-            if not (_has_topic_marker(header) and "№ тем" in header):
+            if _classify_matrix_table(header, second):
+                kind = "matrix_36"
+            elif _has_topic_marker(header) and "№" in header and "тем" in header:
+                kind = "matrix_36"
+            else:
                 continue
-            kind = "matrix_36"
-        if kind == "topics_31" and "темы (разделы)" not in header:
-            continue
+        if kind == "topics_31" and "темы (разделы)" not in header and "темы(разделы)" not in header:
+            if not _classify_matrix_table(header, second):
+                continue
         for row in table.rows[1:]:
             cells = [c.text.strip() for c in row.cells]
             if len(cells) < 2:
@@ -267,10 +336,24 @@ def _extract_topic_summaries(doc: Document) -> tuple[list[int], dict[int, str]]:
 
 
 def _classify_matrix_table(header: str, second: str) -> bool:
-    full = f"{header} {second}".lower()
-    return ("№ тем" in full or "№ темы" in full) and (
-        "объем работы" in full or "объём работы" in full or "лек" in second
+    full = re.sub(r"\s+", " ", f"{header} {second}".lower())
+    has_topic = bool(
+        re.search(r"№\s*тем", full)
+        or "наименование темы" in full
+        or ("№" in full and "тем" in full and "дисциплин" in full)
     )
+    has_volume = any(
+        token in full
+        for token in (
+            "объем работы",
+            "объём работы",
+            "объем ра",
+            "объём ра",
+            "лекции",
+            "лек ",
+        )
+    )
+    return has_topic and has_volume
 
 
 def _matrix_column_indices(table) -> dict[str, int | None]:
@@ -348,13 +431,37 @@ def _extract_matrix_36(doc: Document) -> tuple[list[dict], dict[str, int | None]
     return rows, col_totals
 
 
-def _extract_sr_rows_extended(doc: Document) -> tuple[list[dict], bool, bool, int | None, int | None, int | None]:
+def _ochnaya_hours_column(table) -> int:
+    """Колонка часов очной формы в таблице 3.5 (не очно-заочной / заочной)."""
+    for row in table.rows[:3]:
+        for idx, cell in enumerate(row.cells):
+            label = cell.text.lower().replace("\n", " ").replace("-", "")
+            if "очнозаоч" in label or "заоч" in label:
+                continue
+            if "очная" in label or ("очн" in label and "форма" in label):
+                return idx
+    return 1
+
+
+def _hours_from_row(cells: list[str], col_idx: int) -> int | None:
+    if col_idx >= len(cells):
+        return None
+    parsed = _parse_int_cell(cells[col_idx])
+    if parsed is not None:
+        return parsed
+    if cells[col_idx].strip() in {"", "-", "–", "—", "0"}:
+        return None
+    return _parse_int_cell(cells[col_idx])
+
+
+def _extract_sr_rows_extended(doc: Document) -> tuple[list[dict], bool, bool, int | None, int | None, int | None, int | None]:
     sr_rows: list[dict] = []
     has_homework = False
     has_current = False
     control_hours: int | None = None
     kr_hours: int | None = None
     kp_hours: int | None = None
+    table_total: int | None = None
 
     for table in doc.tables:
         if not table.rows:
@@ -368,14 +475,16 @@ def _extract_sr_rows_extended(doc: Document) -> tuple[list[dict], bool, bool, in
         if _classify_table(header, second) != "sr_35":
             continue
 
+        ochnaya_col = _ochnaya_hours_column(table)
         for row in table.rows[2:]:
             cells = [cell.text.strip() for cell in row.cells]
             if not cells:
                 continue
             label = cells[0].lower().replace("\n", " ")
             if "итого" in label and "ср" in label:
+                table_total = _hours_from_row(cells, ochnaya_col)
                 continue
-            hours = _first_form_hours(cells)
+            hours = _hours_from_row(cells, ochnaya_col)
             sr_rows.append({"label": cells[0].strip(), "hours": hours})
 
             if "текущ" in label and "контрол" in label:
@@ -391,7 +500,7 @@ def _extract_sr_rows_extended(doc: Document) -> tuple[list[dict], bool, bool, in
 
         break
 
-    return sr_rows, has_current, has_homework, control_hours, kr_hours, kp_hours
+    return sr_rows, has_current, has_homework, control_hours, kr_hours, kp_hours, table_total
 
 
 def _extract_sr_questions(doc: Document) -> tuple[list[dict], int | None]:
@@ -491,6 +600,138 @@ def _sr_self_study_budget(sr_rows: list[dict]) -> int | None:
         if "самостоятельн" in label and "изучен" in label:
             return row.get("hours")
     return None
+
+
+def _parse_assessment_form_type(text: str) -> str | None:
+    lowered = text.lower().replace("\n", " ")
+    if "экзам" in lowered:
+        return "exam"
+    if "зач" in lowered and "оцен" in lowered:
+        return "zachet_graded"
+    if "зач" in lowered:
+        return "zachet"
+    if "курсов" in lowered and "проект" in lowered:
+        return "kp"
+    if "курсов" in lowered and "работ" in lowered:
+        return "kr"
+    return None
+
+
+def _parse_assessment_semester(text: str) -> int | None:
+    cleaned = text.strip().replace("\n", " ")
+    match = re.search(r"(\d+)\s*/\s*(\d+)", cleaned)
+    if match:
+        return int(match.group(2))
+    sem_m = re.search(r"(\d+)\s*сем", cleaned.lower())
+    if sem_m:
+        return int(sem_m.group(1))
+    return None
+
+
+def _split_assessment_form_parts(text: str) -> list[str]:
+    parts: list[str] = []
+    for chunk in re.split(r"[\n]+", text):
+        for part in re.split(r",\s*", chunk):
+            cleaned = part.strip(" /")
+            if cleaned and cleaned not in {"-", "–", "—"}:
+                parts.append(cleaned)
+    return parts
+
+
+def _expand_semester_token(token: str) -> list[int]:
+    token = token.strip().strip("/")
+    if not token:
+        return []
+    lowered = token.lower()
+    sem_m = re.search(r"(\d+)\s*сем", lowered)
+    if sem_m:
+        return [int(sem_m.group(1))]
+    match = re.search(r"(\d+)\s*/\s*([\d,\.]+)", token)
+    if match:
+        return [int(x) for x in re.findall(r"\d+", match.group(2))]
+    single = _parse_assessment_semester(token)
+    return [single] if single is not None else []
+
+
+def _parse_assessment_semester_groups(text: str) -> list[list[int]]:
+    groups: list[list[int]] = []
+    for chunk in re.split(r"[\n]+", text):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        if re.search(r"\s/\s", chunk):
+            parts = [part.strip() for part in re.split(r"\s*/\s*", chunk) if part.strip()]
+        else:
+            parts = [chunk]
+        for part in parts:
+            sems = _expand_semester_token(part)
+            if sems:
+                groups.append(sems)
+    return groups
+
+
+def _pair_assessment_forms_semesters(
+    form_types: list[str],
+    sem_groups: list[list[int]],
+) -> list[tuple[str, int | None]]:
+    pairs: list[tuple[str, int | None]] = []
+    if not form_types:
+        return pairs
+    if sem_groups and len(form_types) == len(sem_groups):
+        for form_type, sems in zip(form_types, sem_groups):
+            for semester in sems:
+                pairs.append((form_type, semester))
+        return pairs
+    flat_sems = [sem for group in sem_groups for sem in group]
+    if form_types and flat_sems and len(form_types) == len(flat_sems):
+        return list(zip(form_types, flat_sems))
+    if form_types and len(sem_groups) == 1:
+        for form_type in form_types:
+            for semester in sem_groups[0]:
+                pairs.append((form_type, semester))
+        return pairs
+    if form_types and len(flat_sems) == 1:
+        return [(ft, flat_sems[0]) for ft in form_types]
+    return [(ft, None) for ft in form_types]
+
+
+def _extract_volume_assessments(doc: Document) -> list[dict]:
+    """Формы аттестации из табл. 1.3 (ИЛИП: строка «Форма промежуточной аттестации»)."""
+    items: list[dict] = []
+    seen: set[tuple[str, int | None]] = set()
+
+    for table in doc.tables:
+        if len(table.rows) < 3:
+            continue
+        header = " ".join(c.text for c in table.rows[0].cells).lower()
+        second = " ".join(c.text for c in table.rows[1].cells).lower()
+        if _classify_table(header, second) != "volume_13":
+            continue
+
+        for row in table.rows[2:]:
+            cells = [cell.text.strip() for cell in row.cells]
+            if not cells:
+                continue
+            label = cells[0].lower().replace("\n", " ")
+            if "форма" not in label or "аттест" not in label:
+                continue
+            if len(cells) < 2:
+                continue
+
+            form_parts = _split_assessment_form_parts(cells[1])
+            form_types = [ft for p in form_parts if (ft := _parse_assessment_form_type(p))]
+            sem_groups = _parse_assessment_semester_groups(cells[2]) if len(cells) > 2 else []
+            pairs = _pair_assessment_forms_semesters(form_types, sem_groups)
+
+            for form_type, semester in pairs:
+                key = (form_type, semester)
+                if key not in seen:
+                    seen.add(key)
+                    items.append({"form_type": form_type, "semester": semester})
+        if items:
+            break
+
+    return items
 
 
 def _extract_topics31_assessments(doc: Document) -> list[dict]:
@@ -593,11 +834,13 @@ def extract_tz_fields(doc: Document, discipline_name: str | None = None) -> TzEx
     topics31_zuv = _extract_topics31_zuv(doc)
     flag_violations, flags_scanned = _extract_topics31_flags(doc)
     topic_numbers, topic_names = _extract_topic_summaries(doc)
-    sr_rows, has_hw, _, ctrl_h, kr_h, kp_h = _extract_sr_rows_extended(doc)
+    sr_rows, has_hw, has_current, ctrl_h, kr_h, kp_h, sr_total_tz = _extract_sr_rows_extended(doc)
     questions, q_total = _extract_sr_questions(doc)
     matrix_rows, matrix_totals = _extract_matrix_36(doc)
     pk_ok, pk_missing = _extract_pk_groups(doc)
     topics31_assess = _extract_topics31_assessments(doc)
+    if not topics31_assess:
+        topics31_assess = _extract_volume_assessments(doc)
     bold_titles = _extract_bold_topic_titles(doc)
 
     return TzExtract(
@@ -611,12 +854,14 @@ def extract_tz_fields(doc: Document, discipline_name: str | None = None) -> TzEx
         topic_names=topic_names,
         sr_rows=sr_rows,
         sr_has_homework_control=has_hw,
+        sr_has_current_control=has_current,
         sr_control_work_hours=ctrl_h,
         sr_course_work_hours_35=kr_h,
         sr_course_project_hours_35=kp_h,
         sr_questions=questions,
         sr_questions_hours_total=q_total,
         sr_self_study_budget_hours=_sr_self_study_budget(sr_rows),
+        sr_table_total_from_rows=sr_total_tz,
         matrix_36_rows=matrix_rows,
         matrix_36_col_totals=matrix_totals,
         pk_indicators_without_group=pk_missing,
@@ -638,7 +883,9 @@ def merge_tz_into_rpd_dict(data: dict, tz: TzExtract) -> dict:
             "topic_names": tz.topic_names,
             "sr_rows": tz.sr_rows,
             "sr_has_homework_control": tz.sr_has_homework_control,
+            "sr_has_current_control": data.get("sr_has_current_control") or tz.sr_has_current_control,
             "sr_control_work_hours": tz.sr_control_work_hours,
+            "sr_table_total": tz.sr_table_total_from_rows or data.get("sr_table_total"),
             "sr_course_work_hours_35": tz.sr_course_work_hours_35,
             "sr_course_project_hours_35": tz.sr_course_project_hours_35,
             "sr_questions": tz.sr_questions,

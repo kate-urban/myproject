@@ -1,0 +1,477 @@
+/**
+ * Syllabus — тёмная оболочка с боковой навигацией (как в макете).
+ */
+
+:root {
+  --rail-w: 80px;
+  --rail-bg: #1a1d24;
+  --rail-bg-hover: #252932;
+  --sidebar-bg: #22262e;
+  --sidebar-bg-2: #2a2f38;
+  --sidebar-text: #e2e8f0;
+  --sidebar-muted: #94a3b8;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --topbar-bg: #1e222a;
+  --main-bg: #e4e8ef;
+  --accent: #14b8a6;
+  --accent-hover: #0d9488;
+  --accent-soft: rgba(20, 184, 166, 0.14);
+  --accent-muted: rgba(20, 184, 166, 0.35);
+  --accent-glow: rgba(20, 184, 166, 0.28);
+  --gradient-brand: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 48%, #0d9488 100%);
+  --gradient-page: var(--main-bg);
+  --bg: var(--main-bg);
+  --border: rgba(15, 23, 42, 0.1);
+  --border-strong: rgba(15, 23, 42, 0.16);
+}
+
+body {
+  background: var(--main-bg);
+  background-attachment: fixed;
+}
+
+/* ——— Rail ——— */
+.app-rail {
+  background: var(--rail-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 14px 0;
+  border-right: 1px solid var(--sidebar-border);
+  z-index: 110;
+  min-height: 100vh;
+}
+
+.rail-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 18px;
+  text-decoration: none;
+}
+
+.rail-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--gradient-brand);
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px var(--accent-glow);
+}
+
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 10px;
+  flex: 1;
+}
+
+.rail-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 12px;
+  color: var(--sidebar-muted);
+  text-decoration: none;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+}
+
+.rail-link:hover {
+  color: var(--sidebar-text);
+  background: var(--rail-bg-hover);
+}
+
+.rail-link.active {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+
+.rail-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.rail-text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-spacer {
+  flex: 1;
+  min-height: 12px;
+}
+
+.rail-logout {
+  margin: 0 10px 8px;
+}
+
+/* ——— Grid shell ——— */
+body.has-app-rail {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  grid-template-rows: var(--header-h) 1fr;
+  min-height: 100vh;
+}
+
+body.has-app-rail > .app-rail {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  min-height: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+body.has-app-rail > .app-header {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body.has-app-rail > .layout,
+body.has-app-rail > #appShell,
+body.has-app-rail > #authScreen {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 0;
+}
+
+body.has-app-rail > #authScreen {
+  overflow: auto;
+}
+
+#app.has-app-rail {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  grid-template-rows: var(--header-h) auto auto 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#app.has-app-rail > .app-rail {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+#app.has-app-rail > .app-header {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+#app.has-app-rail > .app-ribbon {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 12px 20px 0;
+}
+
+#app.has-app-rail > .subtoolbar {
+  grid-column: 2;
+  grid-row: 3;
+  margin: 0 20px 10px;
+}
+
+#app.has-app-rail > .workspace-main {
+  grid-column: 2;
+  grid-row: 4;
+  min-height: 0;
+}
+
+#app.has-app-rail > .statusbar {
+  grid-column: 2;
+}
+
+/* ——— Top bar ——— */
+body.has-app-rail .app-header,
+#app.has-app-rail .app-header {
+  background: var(--topbar-bg);
+  border-bottom: 1px solid var(--sidebar-border);
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0 24px;
+}
+
+body.has-app-rail .app-header .app-brand,
+#app.has-app-rail .app-header .app-brand {
+  display: none;
+}
+
+body.has-app-rail .header-context,
+#app.has-app-rail .header-context {
+  color: #94a3b8;
+  font-size: 13px;
+  flex: 1;
+}
+
+body.has-app-rail .header-context:empty::before,
+#app.has-app-rail .header-context:empty::before {
+  content: "Syllabus";
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+body.has-app-rail .header-nav,
+#app.has-app-rail .header-nav {
+  display: none !important;
+}
+
+body.has-app-rail .user-chip,
+#app.has-app-rail .user-chip {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid var(--sidebar-border);
+}
+
+body.has-app-rail .btn-header,
+#app.has-app-rail .btn-header {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--sidebar-border);
+  color: #cbd5e1;
+}
+
+body.has-app-rail .btn-header:hover,
+#app.has-app-rail .btn-header:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+body.has-app-rail .doc-chip,
+#app.has-app-rail .doc-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--sidebar-border);
+  color: #e2e8f0;
+}
+
+/* ——— Dark secondary sidebar ——— */
+body.has-app-rail .app-sidebar,
+body.has-app-rail .sidebar,
+#app.has-app-rail .app-sidebar,
+#app.has-app-rail .sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  box-shadow: none;
+  backdrop-filter: none;
+  color: var(--sidebar-text);
+}
+
+body.has-app-rail .sidebar-title,
+#app.has-app-rail .sidebar-title {
+  color: var(--sidebar-muted);
+}
+
+body.has-app-rail .sidebar-section,
+#app.has-app-rail .sidebar-section {
+  border-bottom-color: var(--sidebar-border);
+}
+
+body.has-app-rail .sidebar-header,
+#app.has-app-rail .sidebar-header {
+  background: var(--sidebar-bg);
+  border-bottom-color: var(--sidebar-border);
+}
+
+body.has-app-rail .search-input,
+body.has-app-rail .nav-search,
+body.has-app-rail .section-search,
+#app.has-app-rail .section-search {
+  background: var(--sidebar-bg-2);
+  border-color: var(--sidebar-border);
+  color: var(--sidebar-text);
+}
+
+body.has-app-rail .search-input::placeholder,
+body.has-app-rail .nav-search::placeholder,
+body.has-app-rail .section-search::placeholder,
+#app.has-app-rail .section-search::placeholder {
+  color: #64748b;
+}
+
+body.has-app-rail .tree-folder .label,
+body.has-app-rail .tree-plan .code,
+body.has-app-rail .tree-discipline,
+#app.has-app-rail .tree-item {
+  color: var(--sidebar-text);
+}
+
+body.has-app-rail .tree-plan .meta,
+body.has-app-rail .tree-folder .count,
+body.has-app-rail .tree-discipline .dot,
+#app.has-app-rail .sidebar-meta {
+  color: var(--sidebar-muted);
+}
+
+body.has-app-rail .tree-plan.active,
+body.has-app-rail .tree-discipline.selected,
+#app.has-app-rail .tree-item.active {
+  background: rgba(255, 255, 255, 0.08);
+  outline-color: rgba(255, 255, 255, 0.12);
+}
+
+body.has-app-rail .tree-folder:hover,
+body.has-app-rail .tree-plan:hover,
+body.has-app-rail .tree-discipline:hover,
+#app.has-app-rail .tree-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+body.has-app-rail .tree-children,
+#app.has-app-rail .tree-children {
+  border-left-color: var(--sidebar-border);
+}
+
+body.has-app-rail .ref-sidebar .ref-tab,
+body.has-app-rail .ref-tab {
+  color: var(--sidebar-text);
+}
+
+body.has-app-rail .ref-sidebar .ref-tab:hover,
+body.has-app-rail .ref-sidebar .ref-tab.active {
+  background: rgba(20, 184, 166, 0.15);
+  color: var(--accent);
+  border-color: var(--accent-muted);
+}
+
+/* ——— Main content ——— */
+body.has-app-rail .main-col,
+#app.has-app-rail .main-col {
+  background: var(--main-bg);
+}
+
+body.has-app-rail .app-layout,
+body.has-app-rail .layout,
+#app.has-app-rail .layout {
+  min-height: calc(100vh - var(--header-h));
+}
+
+body.has-app-rail .page-main,
+#app.has-app-rail .page-main {
+  background: transparent;
+}
+
+body.has-app-rail .app-ribbon,
+#app.has-app-rail .app-ribbon {
+  background: #fff;
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+body.has-app-rail .panel,
+body.has-app-rail .table-card,
+body.has-app-rail .panel-card,
+body.has-app-rail .stat {
+  background: #fff;
+}
+
+body.has-app-rail .plan-hero {
+  box-shadow: 0 8px 28px rgba(13, 148, 136, 0.35);
+}
+
+/* Editor paper */
+#app.has-app-rail .editor-area {
+  background: var(--main-bg);
+}
+
+#app.has-app-rail .editor-page {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+#app.has-app-rail .editor-container {
+  background: var(--main-bg);
+}
+
+body.has-app-rail .btn.primary,
+#app.has-app-rail .btn.primary,
+body.has-app-rail .ribbon-btn.primary,
+#app.has-app-rail .ribbon-btn.primary {
+  background: var(--gradient-brand);
+  box-shadow: 0 2px 10px var(--accent-glow);
+}
+
+body.has-app-rail .panel-tab.active,
+body.has-app-rail .doc-mode-tab.active {
+  background: var(--gradient-brand);
+  box-shadow: 0 2px 10px var(--accent-glow);
+}
+
+/* Doc editor modal (validation) */
+.doc-modal-header {
+  background: var(--topbar-bg) !important;
+  border-bottom-color: var(--sidebar-border) !important;
+  color: #e2e8f0;
+}
+
+.doc-modal-header h3 {
+  color: #f1f5f9 !important;
+}
+
+.doc-sections {
+  background: var(--sidebar-bg) !important;
+  border-right-color: var(--sidebar-border) !important;
+  color: var(--sidebar-text);
+}
+
+.doc-sections-head {
+  color: var(--sidebar-muted);
+}
+
+.doc-section-item {
+  border-bottom-color: var(--sidebar-border);
+  color: var(--sidebar-text);
+}
+
+.doc-section-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.doc-section-item.active {
+  background: rgba(20, 184, 166, 0.18);
+  border-left-color: var(--accent);
+}
+
+.doc-editor-wrap {
+  background: var(--main-bg) !important;
+}
+
+.doc-structured-sidebar {
+  background: var(--sidebar-bg) !important;
+  border-right-color: var(--sidebar-border) !important;
+}
+
+.struct-editor-host {
+  background: var(--main-bg) !important;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --rail-w: 64px;
+  }
+
+  .rail-text {
+    display: none;
+  }
+
+  .rail-link {
+    padding: 12px 8px;
+  }
+}

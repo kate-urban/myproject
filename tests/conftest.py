@@ -76,6 +76,28 @@ async def db_session():
             "ALTER TABLE programs ADD COLUMN IF NOT EXISTS program_kind VARCHAR(16) DEFAULT 'discipline'",
             "ALTER TABLE programs ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE",
             "ALTER TABLE programs ADD COLUMN IF NOT EXISTS constructor_json TEXT",
+            "ALTER TABLE plan_disciplines ADD COLUMN IF NOT EXISTS cycle_identifier VARCHAR(32)",
+            "ALTER TABLE plan_disciplines ADD COLUMN IF NOT EXISTS block_type VARCHAR(32)",
+            "ALTER TABLE plan_disciplines ADD COLUMN IF NOT EXISTS block_code VARCHAR(16)",
+            "ALTER TABLE archive_volume_items ADD COLUMN IF NOT EXISTS page_start INTEGER",
+            "ALTER TABLE archive_volume_items ADD COLUMN IF NOT EXISTS page_end INTEGER",
+            "ALTER TABLE program_zuv ADD COLUMN IF NOT EXISTS row_order INTEGER DEFAULT 0",
+            "ALTER TABLE program_zuv DROP CONSTRAINT IF EXISTS uq_program_zuv_indicator_type",
+            """
+            CREATE TABLE IF NOT EXISTS direction_program_library (
+                id UUID PRIMARY KEY,
+                profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                discipline_code VARCHAR(32) NOT NULL,
+                doc_kind VARCHAR(8) NOT NULL,
+                document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                content_hash VARCHAR(64) NOT NULL,
+                source_filename VARCHAR NOT NULL,
+                extract_json TEXT,
+                uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT uq_direction_library_discipline_kind
+                    UNIQUE (profile_id, discipline_code, doc_kind)
+            )
+            """,
         ):
             await conn.execute(text(ddl))
 

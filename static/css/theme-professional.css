@@ -1,0 +1,518 @@
+/**
+ * Деловой стиль Syllabus — светлый, с акцентными цветами.
+ * Подключается после app-shell / theme-rail.
+ */
+
+:root {
+  --font: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --bg: #eef2fb;
+  --bg-subtle: #e4ebf8;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --text: #0f172a;
+  --text-secondary: #334155;
+  --muted: #64748b;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-muted: #c7d2fe;
+  --accent-glow: rgba(79, 70, 229, 0.22);
+  --accent-2: #0d9488;
+  --accent-2-hover: #0f766e;
+  --accent-2-soft: #ecfdf5;
+  --gradient-brand: linear-gradient(135deg, #818cf8 0%, #6366f1 45%, #4f46e5 100%);
+  --gradient-page: radial-gradient(ellipse 120% 80% at 0% -20%, rgba(99, 102, 241, 0.14), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(13, 148, 136, 0.1), transparent 50%),
+    linear-gradient(180deg, #f4f7fd 0%, var(--bg) 100%);
+  --ok: #059669;
+  --ok-soft: #ecfdf5;
+  --fail: #dc2626;
+  --fail-soft: #fef2f2;
+  --warn: #d97706;
+  --warn-soft: #fffbeb;
+  --info-soft: #eff6ff;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --shadow-sm: 0 2px 8px rgba(79, 70, 229, 0.06);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --rail-bg: #1e2a5a;
+  --rail-bg-hover: #273366;
+  --sidebar-bg: #243060;
+  --sidebar-bg-2: #2d3a72;
+  --sidebar-text: #e8edf8;
+  --sidebar-muted: #a5b4d4;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --topbar-bg: #1e2a5a;
+  --main-bg: var(--bg);
+  --border: rgba(79, 70, 229, 0.1);
+  --border-strong: rgba(79, 70, 229, 0.18);
+}
+
+body {
+  background: var(--gradient-page);
+  background-attachment: fixed;
+  font-size: 13px;
+}
+
+::selection {
+  background: var(--accent-muted);
+  color: var(--text);
+}
+
+/* ——— Header ——— */
+.app-header {
+  background: linear-gradient(90deg, #1e2a5a 0%, #2d3a72 55%, #1e3a5f 100%);
+  border-bottom: 1px solid rgba(129, 140, 248, 0.25);
+  box-shadow: 0 2px 16px rgba(30, 42, 90, 0.2);
+  backdrop-filter: none;
+}
+
+.app-logo {
+  background: var(--gradient-brand) !important;
+  box-shadow: 0 2px 10px var(--accent-glow) !important;
+  border: none !important;
+  border-radius: 8px;
+  font-size: 14px !important;
+  font-weight: 700;
+  color: #fff !important;
+  width: 36px;
+  height: 36px;
+}
+
+.app-header h1 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.app-header .subtitle {
+  font-size: 12px;
+  opacity: 0.82;
+  color: #c7d2fe;
+}
+
+.header-context {
+  color: #e0e7ff;
+}
+
+.user-chip {
+  background: rgba(129, 140, 248, 0.2);
+  border: 1px solid rgba(199, 210, 254, 0.25);
+  color: #e0e7ff;
+}
+
+/* ——— Rail ——— */
+.app-rail {
+  background: linear-gradient(180deg, var(--rail-bg) 0%, #18224a 100%);
+  border-right: 1px solid rgba(129, 140, 248, 0.15);
+}
+
+.rail-logo {
+  background: var(--gradient-brand);
+  color: #fff;
+  box-shadow: 0 4px 14px var(--accent-glow);
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.rail-link:hover {
+  color: #fff;
+  background: var(--rail-bg-hover);
+}
+
+.rail-link.active {
+  background: var(--gradient-brand);
+  box-shadow: 0 4px 14px var(--accent-glow);
+  color: #fff;
+}
+
+.rail-icon {
+  display: none;
+}
+
+.rail-text {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ——— Sidebar ——— */
+body.has-app-rail .app-sidebar,
+body.has-app-rail .sidebar,
+#app.has-app-rail .app-sidebar,
+#app.has-app-rail .sidebar {
+  background: linear-gradient(180deg, var(--sidebar-bg) 0%, #1f2950 100%);
+}
+
+body.has-app-rail .plan-item.active,
+#app.has-app-rail .plan-item.active {
+  background: rgba(129, 140, 248, 0.22);
+  border-color: rgba(165, 180, 252, 0.45);
+  color: #fff;
+}
+
+body.has-app-rail .plan-item:hover,
+#app.has-app-rail .plan-item:hover {
+  background: rgba(129, 140, 248, 0.12);
+}
+
+body.has-app-rail .search-input:focus,
+#app.has-app-rail .search-input:focus {
+  border-color: rgba(129, 140, 248, 0.6);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* ——— Ribbon ——— */
+.app-ribbon {
+  background: linear-gradient(180deg, #fff 0%, #f8faff 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px 12px;
+  box-shadow: var(--shadow-sm);
+  gap: 6px 16px;
+}
+
+.ribbon-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.ribbon-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  gap: 0;
+  border-color: var(--border);
+}
+
+.ribbon-btn:hover:not(:disabled):not(.disabled) {
+  border-color: var(--accent-muted);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.ribbon-btn.primary {
+  background: var(--gradient-brand);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.ribbon-btn.primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  background: var(--gradient-brand);
+}
+
+/* ——— Content cards ——— */
+.empty-state .icon {
+  display: none;
+}
+
+.empty-state h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.plan-hero {
+  background: linear-gradient(135deg, #fff 0%, #f5f7ff 100%);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
+}
+
+.plan-hero::after {
+  display: none;
+}
+
+.plan-hero .eyebrow {
+  color: var(--accent);
+  opacity: 1;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.plan-hero h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.plan-hero p {
+  color: var(--text-secondary);
+}
+
+.plan-tag {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  border: 1px solid var(--accent-muted);
+}
+
+.table-card {
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  background: #fff;
+}
+
+.table-head-bar {
+  background: linear-gradient(180deg, #f8faff 0%, #f1f5ff 100%);
+  border-bottom: 1px solid var(--border);
+}
+
+.table-head-bar h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+table thead th {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+/* ——— Stats ——— */
+.stats {
+  gap: 12px;
+}
+
+.stat {
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.stat.accent {
+  border-left: 3px solid var(--accent);
+}
+
+.stat.ok {
+  border-left: 3px solid var(--ok);
+  background: linear-gradient(135deg, #fff 0%, var(--ok-soft) 100%);
+}
+
+.stat.fail {
+  border-left: 3px solid var(--fail);
+  background: linear-gradient(135deg, #fff 0%, var(--fail-soft) 100%);
+}
+
+.stat .value {
+  font-weight: 700;
+}
+
+.stat.accent .value {
+  color: var(--accent);
+}
+
+.stat.ok .value {
+  color: var(--ok);
+}
+
+.stat.fail .value {
+  color: var(--fail);
+}
+
+/* ——— Buttons & badges ——— */
+.btn {
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+}
+
+.btn.primary {
+  background: var(--gradient-brand);
+  border-color: transparent;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.btn.primary:hover {
+  filter: brightness(1.05);
+}
+
+.badge {
+  font-weight: 600;
+  border-radius: 5px;
+}
+
+.badge.ok {
+  background: var(--ok-soft);
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.badge.fail {
+  background: var(--fail-soft);
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.badge.pending {
+  background: var(--warn-soft);
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.help-panel {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #fff 0%, #fafbff 100%);
+  border-radius: var(--radius-sm);
+}
+
+.help-panel summary {
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 14px;
+  color: var(--accent-hover);
+}
+
+.help-panel summary:hover {
+  background: var(--accent-soft);
+}
+
+.help-panel[open] summary {
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+}
+
+.validation-banner.ok {
+  border-color: #6ee7b7;
+  background: var(--ok-soft);
+}
+
+.validation-banner.fail {
+  border-color: #fca5a5;
+  background: var(--fail-soft);
+}
+
+/* ——— Modal editor ——— */
+.doc-modal-header {
+  background: linear-gradient(90deg, #f8faff 0%, #fff 100%);
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-modal-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.doc-mode-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  border-color: var(--accent-muted);
+}
+
+.doc-section-item.active {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.doc-section-item.has-error {
+  border-left-color: var(--fail);
+}
+
+.doc-assistant-head {
+  background: linear-gradient(90deg, var(--accent-soft) 0%, #fff 100%);
+}
+
+.doc-assistant-badge.local {
+  background: var(--accent-2-soft);
+  color: var(--accent-2-hover);
+}
+
+.doc-modal-actions .btn {
+  min-width: auto;
+}
+
+/* ——— Misc ——— */
+.validation-banner {
+  box-shadow: var(--shadow-sm);
+}
+
+.app-brand .app-logo {
+  display: none;
+}
+
+body.has-app-rail .app-brand,
+#app.has-app-rail .app-brand {
+  display: none;
+}
+
+body.has-app-rail .header-nav,
+#app.has-app-rail .header-nav {
+  display: none;
+}
+
+.export-btns {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.export-btns .btn.sm {
+  padding: 2px 8px;
+  font-size: 11px;
+  min-width: auto;
+}
+
+.export-btns .btn.sm:first-child {
+  color: var(--accent-hover);
+  border-color: var(--accent-muted);
+  background: var(--accent-soft);
+}
+
+.export-btns .btn.sm:last-child {
+  color: var(--accent-2-hover);
+  border-color: #99f6e4;
+  background: var(--accent-2-soft);
+}
+
+.doc-panel-toggle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.doc-panel-toggle:hover {
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+
+.tree-file::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 8px;
+  margin-right: 4px;
+  border: 1px solid var(--accent);
+  border-radius: 1px;
+  vertical-align: middle;
+  opacity: 0.55;
+}
+
+.rail-nav {
+  gap: 4px;
+}
+
+.rail-link {
+  padding: 8px 6px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.row-has-errors td {
+  background: rgba(254, 226, 226, 0.35);
+}

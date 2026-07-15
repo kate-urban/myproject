@@ -105,3 +105,5 @@ def test_layout_templates_configured() -> None:
     names = {name for _, name in LAYOUT_TEMPLATES}
     assert "РПД FGOS 3 (макет)" in names
     assert "ФОС FGOS 3 (макет)" in names
+    assert "ГИА B3_01 (макет)" in names
+    assert "РПп FGOS 3 (макет)" in names

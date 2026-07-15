@@ -16,6 +16,12 @@ FORM_BY_CODE = {
     "3": "ochno_zaochnaya",
 }
 
+FORM_LABELS_RU = {
+    "ochnaya": "очная",
+    "zaochnaya": "заочная",
+    "ochno_zaochnaya": "очно-заочная",
+}
+
 
 @dataclass(frozen=True)
 class PlanTitleInfo:
@@ -46,6 +52,13 @@ def form_from_filename(filename: str) -> str:
     if re.search(r"[-_]z_plx|[-_]z[-_]", lower):
         return "zaochnaya"
     return "ochnaya"
+
+
+def form_display_label(form: str | None) -> str:
+    """Русская подпись формы обучения для UI и отчётов."""
+    if not form:
+        return "—"
+    return FORM_LABELS_RU.get(form.strip().lower(), form)
 
 
 def year_from_filename(filename: str) -> int | None:

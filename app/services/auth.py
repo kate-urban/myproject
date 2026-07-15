@@ -4,31 +4,61 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import time
 import uuid
 from dataclasses import dataclass
 
+import bcrypt
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import AUTH_ENABLED, ALLOW_SELF_REGISTRATION, DEFAULT_ADMIN_USERNAME, MAX_ADMIN_USERS
+from app.config import (
+    AUTH_ENABLED,
+    ALLOW_SELF_REGISTRATION,
+    DEFAULT_ADMIN_USERNAME,
+    MAX_ADMIN_USERS,
+    SESSION_TTL_SECONDS,
+)
 from app.models import AdminUser
 
-_SESSIONS: dict[str, uuid.UUID] = {}
+# token -> (user_id, expires_at_unix)
+_SESSIONS: dict[str, tuple[uuid.UUID, float]] = {}
+
+
+def _legacy_hash_password(password: str) -> str:
+    salt = "syllabus-admin-v1"
+    return hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
 
 
 def hash_password(password: str) -> str:
-    salt = "syllabus-admin-v1"
-    return hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, password_hash: str | None) -> bool:
     if not password_hash:
         return False
-    return hash_password(password) == password_hash
+    if password_hash.startswith("$2"):
+        try:
+            return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+        except ValueError:
+            return False
+    return _legacy_hash_password(password) == password_hash
 
 
 def create_session_token() -> str:
     return secrets.token_urlsafe(32)
+
+
+def _purge_expired_sessions() -> None:
+    now = time.time()
+    expired = [token for token, (_, exp) in _SESSIONS.items() if exp <= now]
+    for token in expired:
+        _SESSIONS.pop(token, None)
+
+
+def _store_session(token: str, user_id: uuid.UUID) -> None:
+    _purge_expired_sessions()
+    _SESSIONS[token] = (user_id, time.time() + SESSION_TTL_SECONDS)
 
 
 @dataclass
@@ -128,7 +158,8 @@ async def register_user(
     display_name = display_name.strip()
     if not AUTH_ENABLED:
         raise ValueError("Регистрация отключена")
-    if not ALLOW_SELF_REGISTRATION:
+    active = await count_active_users(db)
+    if not ALLOW_SELF_REGISTRATION and active > 0:
         raise ValueError("Самостоятельная регистрация запрещена — используйте учётные записи из .env")
     if len(username) < 3:
         raise ValueError("Логин — не короче 3 символов")
@@ -152,7 +183,7 @@ async def register_user(
     db.add(user)
     await db.flush()
     token = create_session_token()
-    _SESSIONS[token] = user.id
+    _store_session(token, user.id)
     return user, token
 
 
@@ -167,17 +198,26 @@ async def login(db: AsyncSession, username: str, password: str) -> tuple[AdminUs
     if not user or not verify_password(password, user.password_hash):
         return None
     token = create_session_token()
-    _SESSIONS[token] = user.id
+    _store_session(token, user.id)
     return user, token
 
 
 async def user_from_token(db: AsyncSession, token: str | None) -> AdminUser | None:
-    if not token or token == "auth-disabled" or token not in _SESSIONS:
+    if not token or token == "auth-disabled":
         return None
-    result = await db.execute(select(AdminUser).where(AdminUser.id == _SESSIONS[token]))
+    _purge_expired_sessions()
+    session = _SESSIONS.get(token)
+    if not session:
+        return None
+    user_id, expires_at = session
+    if time.time() > expires_at:
+        _SESSIONS.pop(token, None)
+        return None
+    result = await db.execute(select(AdminUser).where(AdminUser.id == user_id))
     user = result.scalar_one_or_none()
     if user and user.is_active:
         return user
+    _SESSIONS.pop(token, None)
     return None
 
 
@@ -185,8 +225,8 @@ async def resolve_user(
     db: AsyncSession,
     *,
     token: str | None = None,
-    username: str | None = None,
 ) -> CurrentUser:
+    """Текущий пользователь для режима без обязательного Bearer (AUTH_ENABLED=false)."""
     if not AUTH_ENABLED:
         user = await ensure_default_admin(db)
         return CurrentUser(id=user.id, username=user.username, display_name=user.display_name)
@@ -195,19 +235,7 @@ async def resolve_user(
     if user:
         return CurrentUser(id=user.id, username=user.username, display_name=user.display_name)
 
-    if username:
-        result = await db.execute(
-            select(AdminUser).where(
-                AdminUser.username == username,
-                AdminUser.is_active.is_(True),
-            )
-        )
-        user = result.scalar_one_or_none()
-        if user:
-            return CurrentUser(id=user.id, username=user.username, display_name=user.display_name)
-
-    user = await ensure_default_admin(db)
-    return CurrentUser(id=user.id, username=user.username, display_name=user.display_name)
+    raise PermissionError("Требуется вход")
 
 
 async def require_user(
@@ -225,5 +253,5 @@ async def require_user(
 
 
 def logout(token: str | None) -> None:
-    if token and token in _SESSIONS:
-        del _SESSIONS[token]
+    if token:
+        _SESSIONS.pop(token, None)

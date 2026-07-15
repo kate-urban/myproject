@@ -52,6 +52,8 @@ class FosExtract:
     indicators: list[str] = field(default_factory=list)
     control_items: list[FosControlItem] = field(default_factory=list)
     grading_criteria: list[FosGradingCriterion] = field(default_factory=list)
+    fos_variant: int | None = None  # 1 = FOSd (~18 таблиц), 2 = FOSp (упрощённый)
+    table_count: int = 0
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -241,6 +243,12 @@ def extract_fos(file_bytes: bytes, filename: str = "upload.docx") -> FosExtract:
     dept_match = DEPT_FROM_FILENAME_RE.search(filename)
     department_code = dept_match.group(1) if dept_match else None
 
+    table_count = len(doc.tables)
+    fos_variant = 2 if table_count <= 8 else 1
+    if "fos" in filename.lower() and "fos_" in filename.lower():
+        if "fos_b3" in filename.lower() or "gia" in filename.lower():
+            fos_variant = 1
+
     return FosExtract(
         discipline_code=resolve_discipline_code(file_bytes, filename),
         discipline_name=_discipline_name_from_passport(passport),
@@ -251,4 +259,6 @@ def extract_fos(file_bytes: bytes, filename: str = "upload.docx") -> FosExtract:
         indicators=indicators,
         control_items=_extract_control_items(doc),
         grading_criteria=_extract_grading_criteria(doc),
+        fos_variant=fos_variant,
+        table_count=table_count,
     )

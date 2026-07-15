@@ -1,0 +1,359 @@
+# Эталонные связи «учебный план ↔ РПД ↔ ФОС» для тестов (шаг 0).
+# Сгенерировано на основе samples/ + scripts/fill_golden_pairs.py
+# Промежуточные данные: docs/_golden_extract.json
+
+meta:
+  updated: "2026-07-02"
+  status: reviewed  # draft | reviewed
+  steps:
+    step_0: closed
+    step_1: closed
+    step_2: closed
+    step_3: closed
+  important: >
+    В samples/ намеренно смешаны программы (08.03.01, 54.04.01, 09.03.02, 38.03.04).
+    Два формата учебных планов: Excel (*_plx.xlsx) и XML (*.plx из АСУП UpVo).
+    Поле link_status показывает тип связи УП ↔ РПД.
+
+# --- Учебные планы (источник истины для валидации часов/компетенций) ---
+
+study_plans:
+  - id: lstr_2026_o
+    file: B080301-LSTR-2026_plx.xlsx
+    direction_code: "08.03.01"
+    direction_name: "Строительство"
+    profile_name: "Ландшафтное строительство"
+    form: ochnaya
+    year: 2026
+    university: "СПбГЛТУ им. С.М. Кирова"
+    titul_department: "Строительства и планировки населённых пунктов"
+    fgos: "№ 481 от 31.05.2017"
+
+  - id: lstr_2026_oz
+    file: B080301-LSTR-2026oz_plx.xlsx
+    direction_code: "08.03.01"
+    direction_name: "Строительство"
+    profile_name: "Ландшафтное строительство"
+    form: ochno_zaochnaya
+    year: 2026
+    institute: "ИЛАС ОЗ"
+
+  - id: gmu_2022_o
+    file: B380304-2022_plx.xlsx
+    direction_code: "38.03.04"
+    direction_name: "Государственное и муниципальное управление"
+    profile_name: "Государственное и муниципальное управление в лесном секторе"
+    form: ochnaya
+    year: 2022
+    titul_department: "Лесной политики, экономики и управления"
+
+  - id: design_540401_o
+    file: M540401-2026.plx
+    format: xml_upvo  # UTF-16 XML, АСУП UpVo (не Excel)
+    direction_code: "54.04.01"
+    direction_name: "Дизайн"
+    profile_name: "Экодизайн"
+    form: ochnaya  # КодФормыОбучения=1
+    year: 2026
+    qualification: "магистр"
+    fgos: "№ 1004 от 13.08.2020"
+    app: "UpVo"
+    xml_root: "ПланыСтроки"  # атрибуты: ДисциплинаКод, Дисциплина, ТрудоемкостьКредитов, ЧасовПоПлану, КодКафедры
+
+  - id: design_540401_oz
+    file: M540401-2026oz.plx
+    format: xml_upvo
+    direction_code: "54.04.01"
+    direction_name: "Дизайн"
+    profile_name: "Экодизайн"
+    form: ochno_zaochnaya
+    year: 2026
+
+  - id: ist_090302
+    file: B090302-CTM-2026.plx
+    format: xml_upvo
+    direction_code: "09.03.02"
+    direction_name: "Информационные системы и технологии"
+    profile_name: "Цифровые технологии в медиаиндустрии"
+    form: ochnaya
+    year: 2026
+    note: "Профиль CTM; ФОС Б1.О.13 из другого профиля (RST) — F003 ожидаемо падает"
+
+# --- Пары дисциплина ↔ документы ---
+
+pairs:
+  # ===== Связано с B080301 (08.03.01) — только данные из plx =====
+
+  - id: lstr_b2o03p
+    study_plan_id: lstr_2026_o
+    link_status: plx_only
+    discipline_code: "Б2.О.03(П)"
+    discipline_name: "Производственная практика. Проектная практика 1"
+    plan_row: 76
+    credits: 3
+    hours_total: 108
+    hours_contact: 3
+    hours_aud: 105
+    hours_sr: null
+    competencies: "ОПК-3.4; ОПК-3.5; ОПК-3.6; ОПК-3.7; ОПК-6.1; ОПК-6.2; ОПК-6.3; ОПК-6.4; ОПК-6.12; ОПК-6.13; ПК-7.4"
+    rpd_file: null
+    fos_file: null
+    notes: >
+      В samples есть B2_O_03_P_...k55.docx, но он относится к 54.04.01 (18 з.е.),
+      не к этой строке УП (3 з.е.). Для тестов импорта УП — использовать plx;
+      для тестов парсера РПД — см. design_b2o03p.
+
+  - id: lstr_b1v12
+    study_plan_id: lstr_2026_o
+    link_status: plx_only
+    discipline_code: "Б1.В.12"
+    discipline_name: "Основы проектной деятельности"
+    plan_row: 52
+    credits: 2
+    hours_total: 72
+    hours_contact: 36
+    hours_aud: 36
+    rpd_file: null
+    fos_file: null
+    notes: "Похожая тематика, но не Б1.О.01.07 из docx-кластера 54.04.01"
+
+  - id: lstr_ftd01
+    study_plan_id: lstr_2026_o
+    link_status: plx_only
+    discipline_code: "ФТД.01"
+    discipline_name: "Социально-ознакомительный практикum"
+    plan_row: 85
+    credits: 4
+    hours_total: 144
+    rpd_file: null
+    fos_file: null
+    notes: "В M540401 другой ФТД.01 — см. design_ftd01"
+
+  # ===== 54.04.01 Экодизайн — полные пары plx + docx =====
+
+  - id: design_b1o0107
+    study_plan_id: design_540401_o
+    link_status: plx_and_docx
+    validation_passes: true
+    discipline_code: "Б1.О.01.07"
+    discipline_name: "Проектная деятельность"
+    plx_row_code: "-14"
+    credits: 11
+    hours_total: 396
+    department_code: "55"
+    department_name: "компьютерного моделирования и компьютерной графики"
+    rpd_file: B1_O_01_07_Proektnaya_deyatelnost_k55.docx
+    fos_file: null
+    validation: "R001 R020 — эталонная пара для тестов"
+
+  - id: design_b1v0103
+    study_plan_id: design_540401_o
+    link_status: plx_and_docx
+    validation_passes: true
+    discipline_code: "Б1.В.01.03"
+    discipline_name: "Маркетинг экологических продуктов"
+    plx_row_code: "-19"
+    credits: 4
+    hours_total: 144
+    department_code: "51"
+    department_name: "экономики, учета и анализа"
+    rpd_file: B1_V_01_03_Marketing_ekologicheskikh_produktov_k51.docx
+    fos_file: null
+
+  - id: design_b1v0205
+    study_plan_id: design_540401_o
+    link_status: plx_and_docx
+    validation_passes: true
+    discipline_code: "Б1.В.02.05"
+    discipline_name: "Компьютерные технологии в науке и производстве"
+    plx_row_code: "-38"
+    credits: 3
+    hours_total: 108
+    department_code: "45"
+    department_name: "информационных систем и технологий"
+    rpd_file: B1_V_02_05_Kompyuternye_tekhnologii_v_nauke_i_proizvodstve_k45.docx
+    fos_file: null
+    duplicate_files:
+      - B1_V_02_05_Kompyuternye_tekhnologii_v_nauke_i_proizvodstve_k45(1).docx
+
+  - id: design_b2o03p
+    study_plan_id: design_540401_o
+    link_status: plx_and_docx
+    validation_passes: true
+    doc_type: practice
+    discipline_code: "Б2.О.03(П)"
+    discipline_name: "Производственная практика. Проектная практика"
+    plx_row_code: "-41"
+    credits: 18
+    hours_total: 648
+    department_code: "55"
+    rpd_file: B2_O_03_P_Proizvodstvennaya_praktika_Proektnaya_praktika_k55.docx
+    fos_file: null
+    duplicate_files:
+      - B2_O_03_P_Proizvodstvennaya_praktika_Proektnaya_praktika_k55(1).docx
+      - B2_O_03_P_Proizvodstvennaya_praktika_Proektnaya_praktika_k55(2).docx
+    notes: "Не путать с Б2.О.03(П) в B080301 (3 з.е., 108 ч) — другая программа"
+
+  - id: design_ftd01
+    study_plan_id: design_540401_o
+    link_status: plx_and_docx
+    validation_passes: true
+    discipline_code: "ФТД.01"
+    discipline_name: "История развития науки и техники"
+    plx_row_code: "-1"
+    credits: 2
+    hours_total: 72
+    department_code: "52"
+    rpd_file: FTD_01_Istoria_razvitia_nauki_i_tekhniki_k52.docx
+    fos_file: FOS_FTD_01_Istoria_razvitia_nauki_i_tekhniki_k52.docx
+    facultative: true
+
+  - id: design_ftd04
+    study_plan_id: design_540401_o
+    link_status: plx_and_docx
+    validation_passes: true
+    discipline_code: "ФТД.04"
+    discipline_name: "Основы таксидермии"
+    plx_row_code: "-46"
+    credits: 2
+    hours_total: 72
+    department_code: "40"
+    rpd_file: FTD_04_Osnovy_taxidermii_k40.docx
+    fos_file: null
+    facultative: true
+
+  - id: design_fos_ftd02
+    study_plan_id: design_540401_o
+    link_status: fos_only
+    discipline_code: "ФТД.02"
+    fos_file: FOS_FTD_02_Vizualizatsia_proektnykh_resheniy_k55.docx
+    rpd_file: null
+    notes: "РПД в samples нет; в plx есть дисциплина ФТД.02"
+
+  # ===== Кластер 09.03.02 ИСТ (ФОС + РПД, plx нет) =====
+
+  - id: ist_b1o13
+    study_plan_id: ist_090302
+    link_status: plx_and_fos_partial
+    discipline_code: "Б1.О.13"
+    discipline_name: "Технологии программирования"
+    profile_name: "Робототехнические системы и информационные технологии"
+    department_code: "45"
+    rpd_file: B1_O_13_Tekhnologii_programmirovania_k45.docx
+    fos_file: FOS_B1_O_13_Tekhnologii_programmirovania_k45.docx
+    validation_fos_passes: false
+    validation_fos_fail_rules: ["F003"]
+    parser_note: "ФОС без стилей ФОСд — парсить по таблицам; профиль ФОС ≠ профиль plx CTM"
+
+  - id: ist_b1o23
+    study_plan_id: ist_090302
+    link_status: plx_and_fos
+    discipline_code: "Б1.О.23"
+    discipline_name: "Теория информации, данные, знания"
+    profile_name: "Цифровые технологии в медиаиндустрии"
+    department_code: "45"
+    rpd_file: B1_O_23_Teoria_informatsii_dannye_znania_k45.docx
+    rpd_file_alternate: B1_O_23_Teoria_informatsii_dannye_znania_45k.docx
+    fos_file: FOS_B1_O_23_Teoria_informatsii_dannye_znania_k45.docx
+    validation_fos_passes: true
+
+  - id: design_fos_ftd03
+    study_plan_id: design_540401_o
+    link_status: fos_only
+    discipline_code: "ФТД.03"
+    fos_file: FOS_FTD_03_Kontseptualnye_eko-installyatsii_k55.docx
+    rpd_file: null
+
+# --- Сводный отчёт (не plx) ---
+
+reports:
+  - file: 2023_god_priema_SVOD_po_UP_FGOS3.xlsx
+    type: svod_7_1
+    columns: [учебный_план, направление, код_кафедры, кафедра, шифр, дисциплина, з.e., автор]
+
+  - file: Otchet_po_razrabotke_RPd_2025_1.xlsx
+    type: report_7_2
+    note: "98 листов, формулы — не для MVP"
+
+# --- Правила имён файлов ---
+
+filename_rules:
+  rpd: "{code_lat}_{translit_name}_k{dept}.docx"
+  fos: "FOS_{code_lat}_{translit_name}_k{dept}.docx"
+  ftd: "FTD_{num}_{translit_name}_k{dept}.docx"
+  code_normalization:
+    cyrillic_to_latin: { "Б": "B", "О": "O", "В": "V", "П": "P" }
+    dot_to_underscore: true
+    parentheses: "(П) → _P"
+  dept_suffix: "k{NN} = код кафедры из справочника (45, 51, 55, …)"
+  examples:
+    - code: "Б1.О.01.07"
+      file_part: "B1_O_01_07"
+      sample: B1_O_01_07_Proektnaya_deyatelnost_k55.docx
+    - code: "Б2.О.03(П)"
+      file_part: "B2_O_03_P"
+      sample: B2_O_03_P_Proizvodstvennaya_praktika_Proektnaya_praktika_k55.docx
+
+# --- link_status: легенда ---
+
+link_status_legend:
+  plx_only: "Есть в учебном плане, РПД в samples не приложен (или не тот)"
+  docx_only: "РПД/ФОС есть, plx для этой программы в samples нет"
+  plx_and_docx: "Полная пара УП ↔ документ (эталон для валидации R001–R023)"
+  plx_and_docx_partial: "Коды/названия не совпадают — не использовать для авто-сверки"
+  plx_and_fos: "УП + ФОС (валидация F001–F003, F006–F012 без РПД)"
+  plx_and_fos_partial: "УП + ФОС, известное расхождение (напр. профиль)"
+  fos_only: "Только ФОС"
+
+# --- Открытые вопросы (нужен ответ методиста) ---
+
+open_questions:
+  - id: Q1
+    question: "Plx для 54.04.01 Дизайн"
+    resolved: true
+    answer: "M540401-2026.plx и M540401-2026oz.plx"
+
+  - id: Q2
+    question: "Смешанные samples"
+    resolved: true
+    answer: "Намеренно — разные программы в одной папке"
+
+  - id: Q3
+    question: "Б1.О.01.07 vs Б1.В.12 в B080301"
+    resolved: true
+    answer: "Разные дисциплины в разных программах"
+
+  - id: Q4
+    question: "Конвертация .doc → .docx"
+    resolved: true
+    answer: "В samples уже docx; при загрузке .doc — конвертация в импорте"
+
+  - id: Q5
+    question: "PDF B1_V_OD_5_SAPR_ASUTP_k14.pdf — нужен в MVP?"
+    resolved: true
+    answer: "Отложено до этапа 7+ (см. docs/ROADMAP.md). MVP — DOCX plx/xml."
+
+# --- Чек-лист шага 0 ---
+
+checklist:
+  - item: "Прогнать scripts/analyze_samples.py"
+    done: true
+  - item: "Заполнить golden_pairs.yaml"
+    done: true
+  - item: "Plx для 54.04.01 (M540401-2026.plx)"
+    done: true
+  - item: "Полные пары plx + docx для 54.04.01"
+    done: true
+  - item: "Подтвердить смешанную структуру samples"
+    done: true
+  - item: "Plx для 09.03.02 ИСТ (опционально, для полного покрытия)"
+    done: false
+    note: "Отложено — шаг 3 (пары docx_only без plx)"
+  - item: "Решить Q5: PDF/OCR в MVP или позже"
+    done: true
+  - item: "Методист: финальный просмотр golden_pairs.yaml (status → reviewed)"
+    done: true
+  - item: "Шаг 1: импорт plx/xlsx в БД"
+    done: true
+  - item: "Шаг 2: валидация РПД R001–R023, 6 golden-пар 54.04.01"
+    done: true

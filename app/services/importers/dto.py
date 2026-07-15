@@ -28,6 +28,9 @@ class DisciplineDTO:
     nesting_level: int = 1
     row_order: int = 0
     object_type: str | None = None
+    cycle_identifier: str | None = None
+    block_type: str | None = None
+    block_code: str | None = None
     competencies: list[str] = field(default_factory=list)
     assessments: list[AssessmentDTO] = field(default_factory=list)
 

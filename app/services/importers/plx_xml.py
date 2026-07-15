@@ -162,6 +162,27 @@ def _aggregate_row_hours(
     )
 
 
+def _load_cycle_map(root: ET.Element) -> dict[str, dict[str, str]]:
+    block_types: dict[str, str] = {}
+    for el in _iter_by_local_name(root, "СправочникТипБлока"):
+        code = _attr(el, "Код")
+        if code:
+            block_types[code] = _attr(el, "Название")
+
+    cycles: dict[str, dict[str, str]] = {}
+    for el in _iter_by_local_name(root, "ПланыЦиклы"):
+        code = _attr(el, "Код")
+        if not code:
+            continue
+        type_code = _attr(el, "ТипБлока")
+        cycles[code] = {
+            "identifier": _attr(el, "Идентификатор"),
+            "block_type": block_types.get(type_code, ""),
+            "parent_code": _attr(el, "КодРодителя") or "",
+        }
+    return cycles
+
+
 class PlxXmlReader:
     """Читает *.plx и возвращает StudyPlanDTO."""
 
@@ -219,6 +240,7 @@ class PlxXmlReader:
             discipline_links.setdefault(row_code, []).append(cipher)
 
         work_types = _load_work_types(root)
+        cycle_map = _load_cycle_map(root)
 
         disciplines: list[DisciplineDTO] = []
         for row_el in _iter_by_local_name(root, "ПланыСтроки"):
@@ -243,6 +265,8 @@ class PlxXmlReader:
                 root, row_code, work_types
             )
             assessments = _extract_assessments(root, row_code)
+            block_code = _attr(row_el, "КодБлока") or None
+            cycle_info = cycle_map.get(block_code or "", {})
             disciplines.append(
                 DisciplineDTO(
                     code=code,
@@ -259,6 +283,9 @@ class PlxXmlReader:
                     nesting_level=_int_attr(row_el, "УровеньВложения") or 1,
                     row_order=_int_attr(row_el, "Порядок") or 0,
                     object_type=object_type or None,
+                    cycle_identifier=cycle_info.get("identifier") or None,
+                    block_type=cycle_info.get("block_type") or None,
+                    block_code=block_code,
                     competencies=comp_codes,
                     assessments=assessments,
                 )

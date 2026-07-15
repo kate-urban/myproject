@@ -36,7 +36,9 @@ async def test_ui_routes(api_client: AsyncClient) -> None:
 
     validation = await api_client.get("/validation")
     assert validation.status_code == 200
-    assert "validation_rules.js" in validation.text
+    assert "shell.js" in validation.text
+    assert "appRibbon" in validation.text
+    assert "validation_structured.js" in validation.text
 
 
 @pytest.mark.asyncio

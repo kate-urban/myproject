@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Document as DocumentModel
 from app.models import PlanDiscipline, Program, Section
 from app.services.fos_extractor import extract_fos
-from app.services.rpd_linker import _apply_fos_extract, _apply_rpd_extract, is_fos_filename
+from app.services.program_extract import apply_fos_extract, apply_rpd_extract
+from app.services.rpd_linker import is_fos_filename
 from app.services.rpd_extractor import extract_rpd
 from app.utils.html_converter import insert_html_after_paragraph
 
@@ -54,6 +55,8 @@ def build_docx_bytes_from_sections(sections: list[tuple[str, str]]) -> bytes:
 async def refresh_extract_for_document(
     db: AsyncSession,
     document_id: uuid.UUID,
+    *,
+    program_id: uuid.UUID | None = None,
 ) -> str:
     """
     Собирает DOCX из разделов документа и обновляет rpd_extract_json / fos_extract_json
@@ -76,24 +79,29 @@ async def refresh_extract_for_document(
     file_bytes = build_docx_bytes_from_sections(pairs)
     filename = doc.filename or "document.docx"
 
-    program_result = await db.execute(
-        select(Program).where(
-            or_(
-                Program.document_id == document_id,
-                Program.fos_document_id == document_id,
+    if program_id is not None:
+        program = await db.get(Program, program_id)
+    else:
+        program_result = await db.execute(
+            select(Program)
+            .where(
+                or_(
+                    Program.document_id == document_id,
+                    Program.fos_document_id == document_id,
+                )
             )
+            .limit(1)
         )
-    )
-    program = program_result.scalar_one_or_none()
+        program = program_result.scalars().first()
     if program is None:
         raise ValueError("Документ не привязан к дисциплине учебного плана")
 
     if program.fos_document_id == document_id or is_fos_filename(filename):
-        _apply_fos_extract(program, extract_fos(file_bytes, filename))
+        apply_fos_extract(program, extract_fos(file_bytes, filename))
         return "fos"
 
     rpd = extract_rpd(file_bytes, filename)
-    _apply_rpd_extract(program, rpd)
+    apply_rpd_extract(program, rpd)
     discipline = await db.get(PlanDiscipline, program.plan_discipline_id)
     from app.services.structured_program_sync import sync_program_from_extract
 

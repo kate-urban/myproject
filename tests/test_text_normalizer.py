@@ -41,3 +41,31 @@ async def test_normalize_study_plan_dto(db_session) -> None:
     normalized = await normalize_study_plan_dto(db_session, dto)
     assert normalized.disciplines[0].name == "Дисциплина ОПР"
     assert normalized.disciplines[0].competencies == ["ОПР.1"]
+
+
+@pytest.mark.asyncio
+async def test_normalize_rpd_extract(db_session) -> None:
+    from app.services.reference_seed import seed_reference_defaults
+    from app.services.rpd_extractor import RpdExtract
+    from app.services.text_normalizer import normalize_rpd_extract
+
+    await seed_reference_defaults(db_session)
+    await db_session.commit()
+
+    rpd = RpdExtract(
+        discipline_name="Дисциплина ОПР-1",
+        competencies=["ОПР-1.1"],
+        zuv_texts=["знать ОПР-1"],
+    )
+    normalized = await normalize_rpd_extract(db_session, rpd)
+    assert normalized.discipline_name == "Дисциплина ОПР"
+    assert normalized.competencies == ["ОПР.1"]
+    assert normalized.zuv_texts == ["знать ОПР"]
+
+
+def test_form_display_label_ru() -> None:
+    from app.utils.plan_title import form_display_label
+
+    assert form_display_label("ochnaya") == "очная"
+    assert form_display_label("zaochnaya") == "заочная"
+    assert form_display_label("ochno_zaochnaya") == "очно-заочная"

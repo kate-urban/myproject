@@ -221,3 +221,23 @@ def test_extract_rpd_reapproval_section_without_filled_years() -> None:
     rpd = extract_rpd(DESIGN_RPD.read_bytes(), DESIGN_RPD.name)
     assert rpd.has_reapproval_section is True
     assert rpd.reapproval_years == []
+
+
+def test_r012_flags_duplicate_zuv_across_indicators() -> None:
+    duplicate = "способен осуществлять деловую коммуникацию в устной и письменной формах"
+    report = validate_discipline(
+        _mock_plan(),
+        _mock_discipline(),
+        RpdExtract(
+            discipline_code="Б1.О.01.07",
+            section2_zuv_by_indicator={
+                "УК-4.1": [duplicate],
+                "УК-4.2": [duplicate],
+            },
+        ),
+    )
+    r012 = next(item for item in report.results if item.rule_id == "R012")
+    assert r012.passed is False
+    assert "УК-4.1" in (r012.actual or "")
+    assert "УК-4.2" in (r012.actual or "")
+
