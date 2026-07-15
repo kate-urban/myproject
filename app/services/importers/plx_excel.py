@@ -8,7 +8,7 @@ from pathlib import Path
 
 import openpyxl
 
-from app.services.importers.dto import DisciplineDTO, StudyPlanDTO
+from app.services.importers.dto import AssessmentDTO, DisciplineDTO, StudyPlanDTO
 from app.utils.plan_title import (
     PlanTitleInfo,
     form_from_filename,
@@ -163,6 +163,54 @@ def _read_competencies(wb: openpyxl.Workbook) -> dict[str, list[str]]:
     return comp_map
 
 
+def _parse_assessment_columns(
+    ws: openpyxl.worksheet.worksheet.Worksheet, header_row: int
+) -> dict[str, int]:
+    mapping: dict[str, int] = {}
+    for row_idx in range(max(1, header_row - 1), header_row + 2):
+        rows = list(
+            ws.iter_rows(min_row=row_idx, max_row=row_idx, values_only=True)
+        )
+        if not rows:
+            continue
+        for idx, cell in enumerate(rows[0]):
+            label = _cell_str(cell).lower()
+            if not label:
+                continue
+            if "экзам" in label:
+                mapping.setdefault("exam", idx)
+            elif "зач" in label and "оцен" in label:
+                mapping.setdefault("zachet_graded", idx)
+            elif "зач" in label:
+                mapping.setdefault("zachet", idx)
+            elif "курсов" in label and "проект" in label:
+                mapping.setdefault("kp", idx)
+            elif "курсов" in label and "работ" in label:
+                mapping.setdefault("kr", idx)
+    return mapping
+
+
+def _assessments_from_row(
+    row: tuple[object, ...] | list[object], col_map: dict[str, int]
+) -> list[AssessmentDTO]:
+    items: list[AssessmentDTO] = []
+    for form_type, col_idx in col_map.items():
+        if col_idx >= len(row):
+            continue
+        raw = row[col_idx]
+        text = _cell_str(raw)
+        if not text or text in {"-", "–", "—", "0"}:
+            continue
+        semester = _cell_int(raw)
+        if semester is None and text in {"+", "++", "v", "V", "да"}:
+            items.append(AssessmentDTO(form_type=form_type))
+        elif semester is not None:
+            items.append(AssessmentDTO(form_type=form_type, semester=semester))
+        elif text:
+            items.append(AssessmentDTO(form_type=form_type))
+    return items
+
+
 def _read_plan_disciplines(
     wb: openpyxl.Workbook, comp_map: dict[str, list[str]]
 ) -> list[DisciplineDTO]:
@@ -171,6 +219,7 @@ def _read_plan_disciplines(
 
     ws = wb["План"]
     header_row = _find_header_row(ws)
+    assessment_cols = _parse_assessment_columns(ws, header_row)
     disciplines: list[DisciplineDTO] = []
 
     for row_idx, row in enumerate(
@@ -204,6 +253,7 @@ def _read_plan_disciplines(
                 hours_control=hours_control,
                 row_order=row_idx,
                 competencies=sorted(set(_competencies_for_code(code, comp_map))),
+                assessments=_assessments_from_row(row, assessment_cols),
             )
         )
 

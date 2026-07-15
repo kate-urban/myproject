@@ -47,6 +47,17 @@ class DocumentParser:
     def __init__(self, custom_sections: Optional[List[str]] = None):
         self.custom_sections = custom_sections
 
+    @staticmethod
+    def _style_name(para) -> str:
+        """Имя стиля абзаца; в старых .doc после конвертации name иногда None."""
+        if not para.style:
+            return ""
+        return para.style.name or ""
+
+    @staticmethod
+    def _font_name(span: dict) -> str:
+        return span.get("font") or ""
+
     async def parse_pdf(self, file_bytes: bytes) -> tuple[str, List[ParsedSection]]:
         def _sync():
             doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -62,7 +73,9 @@ class DocumentParser:
                         if not text:
                             continue
                         font_size = max(span["size"] for span in line["spans"])
-                        is_bold = any("bold" in span["font"].lower() for span in line["spans"])
+                        is_bold = any(
+                            "bold" in self._font_name(span).lower() for span in line["spans"]
+                        )
                         page_lines.append(
                             {
                                 "text": text,
@@ -111,7 +124,11 @@ class DocumentParser:
         return sections
 
     def _detect_doc_type(self, doc: DocxDocument) -> str:
-        styles = {para.style.name.lower() for para in doc.paragraphs if para.style and para.text.strip()}
+        styles = {
+            self._style_name(para).lower()
+            for para in doc.paragraphs
+            if para.text.strip()
+        }
         if any("рпд" in s for s in styles):
             return "rp"
         if any("фосд" in s for s in styles):
@@ -141,7 +158,7 @@ class DocumentParser:
         if not inner.strip():
             return ""
 
-        style_name = (para.style.name if para.style else "").lower()
+        style_name = self._style_name(para).lower()
         css: List[str] = []
 
         if para.paragraph_format.left_indent:
@@ -188,7 +205,7 @@ class DocumentParser:
         current["content"] = f"{current['content']}{html}"
 
     def _style_level(self, style_name: str) -> Optional[int]:
-        key = style_name.lower().strip()
+        key = (style_name or "").lower().strip()
         for pattern, level in HEADING_STYLE_LEVELS.items():
             if pattern in key:
                 return level
@@ -210,7 +227,7 @@ class DocumentParser:
                 if not text:
                     continue
 
-                style_name = para.style.name if para.style else ""
+                style_name = self._style_name(para)
                 level = self._style_level(style_name)
 
                 # x.y.z — всегда 3-й уровень (перекрывает стиль)
@@ -297,7 +314,7 @@ class DocumentParser:
                 text = para.text.strip()
                 if not text:
                     continue
-                style_name = para.style.name.lower() if para.style else ""
+                style_name = self._style_name(para).lower()
                 is_heading = "heading" in style_name or "заголов" in style_name
                 font_size = 12
                 is_bold = False

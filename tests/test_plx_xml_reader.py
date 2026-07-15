@@ -60,3 +60,13 @@ def test_read_design_b1o0107_golden_pair(reader: PlxXmlReader) -> None:
     assert discipline.department_code == "55"
     assert len(discipline.competencies) > 0
     assert any(c.startswith("УК-") or c.startswith("ОПК-") for c in discipline.competencies)
+
+
+@pytest.mark.skipif(not DESIGN_PLX.is_file(), reason="sample M540401-2026.plx missing")
+def test_read_design_b1o0107_assessments(reader: PlxXmlReader) -> None:
+    dto = reader.read(DESIGN_PLX)
+    discipline = next(d for d in dto.disciplines if d.code == "Б1.О.01.07")
+    forms = {a.form_type for a in discipline.assessments}
+    assert "exam" in forms
+    assert "zachet" in forms
+    assert any(a.semester for a in discipline.assessments)

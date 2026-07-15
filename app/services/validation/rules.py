@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.models import PlanDiscipline
-from app.services.rpd_extractor import INDICATOR_CODE_RE, RpdExtract
+from app.services.rpd_extractor import INDICATOR_CODE_RE, RpdExtract, normalize_competency_code
 
 COMPETENCY_CODE_RE = re.compile(r"(?:УК|ОПК|ПК|ПСК)-\d+(?:\.\d+)?", re.IGNORECASE)
 
@@ -20,6 +20,7 @@ class ValidationContext:
     profile_name: str
     discipline: PlanDiscipline
     rpd: RpdExtract
+    plan_form: str | None = None
 
 
 @dataclass
@@ -57,7 +58,9 @@ def _texts_match(expected: str | None, actual: str | None) -> bool:
 
 
 def _plan_competencies(discipline: PlanDiscipline) -> list[str]:
-    return sorted({item.competency_code.upper() for item in discipline.competencies})
+    return sorted(
+        {normalize_competency_code(item.competency_code) for item in discipline.competencies}
+    )
 
 
 def _indicator_codes(codes: list[str]) -> set[str]:
@@ -92,6 +95,40 @@ def _plan_sr_plus_control(discipline: PlanDiscipline) -> int | None:
     if sr is None and control is None:
         return None
     return (sr or 0) + (control or 0)
+
+
+def _normalize_zuv_phrase(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def _is_extramural_form(form: str | None) -> bool:
+    if not form:
+        return False
+    lowered = form.lower()
+    return any(token in lowered for token in ("zaoch", "заоч", "oz", "очно-заоч"))
+
+
+def _section2_phrases_for_plan(ctx: ValidationContext) -> set[str]:
+    plan_indicators = _indicator_codes(_plan_competencies(ctx.discipline))
+    phrases: set[str] = set()
+    by_ind = ctx.rpd.section2_zuv_by_indicator
+    if not by_ind:
+        return phrases
+    for code, items in by_ind.items():
+        if code == "_ungrouped":
+            phrases.update(items)
+            continue
+        if not plan_indicators or code in plan_indicators:
+            phrases.update(items)
+    return phrases
+
+
+def _zuv_hint_text(ctx: ValidationContext, missing: str) -> str | None:
+    for code, items in ctx.rpd.section2_zuv_by_indicator.items():
+        for item in items:
+            if missing in item or item in missing:
+                return f"Скопируйте из п.2 ({code}): …{item[:100]}…"
+    return None
 
 
 def rule_r001(ctx: ValidationContext) -> RuleResult:
@@ -215,9 +252,18 @@ def rule_r006(ctx: ValidationContext) -> RuleResult:
     )
 
 
+def _rpd_competency_codes(rpd: RpdExtract) -> set[str]:
+    """Коды компетенций РПД: таблица 2.1 + индикаторы из колонки «Индикаторы…» / п.2."""
+    codes = {normalize_competency_code(code) for code in rpd.competencies}
+    for key in rpd.section2_zuv_by_indicator:
+        if key != "_ungrouped":
+            codes.add(normalize_competency_code(key))
+    return codes
+
+
 def rule_r007(ctx: ValidationContext) -> RuleResult:
     plan_codes = _plan_competencies(ctx.discipline)
-    rpd_codes = {code.upper() for code in ctx.rpd.competencies}
+    rpd_codes = _rpd_competency_codes(ctx.rpd)
     if not plan_codes:
         return RuleResult(
             rule_id="R007",
@@ -237,13 +283,15 @@ def rule_r007(ctx: ValidationContext) -> RuleResult:
         )
     missing = [code for code in plan_codes if code not in rpd_codes]
     passed = not missing
+    indicator_actual = sorted(_indicator_codes(list(rpd_codes)))
+    display_actual = indicator_actual or sorted(rpd_codes)
     return RuleResult(
         rule_id="R007",
         name="Компетенции УП присутствуют в разделе 2 РПД",
         passed=passed,
         message="Все компетенции УП есть в РПД" if passed else "Часть компетенций УП отсутствует в РПД",
         expected="; ".join(plan_codes),
-        actual="; ".join(sorted(rpd_codes)) if rpd_codes else None,
+        actual="; ".join(display_actual) if display_actual else None,
     )
 
 
@@ -337,7 +385,7 @@ def rule_r010(ctx: ValidationContext) -> RuleResult:
 def rule_r011(ctx: ValidationContext) -> RuleResult:
     """Методичка R011: список компетенций РПД полностью совпадает с УП."""
     plan_codes = set(_plan_competencies(ctx.discipline))
-    rpd_indicators = _indicator_codes(ctx.rpd.competencies)
+    rpd_indicators = _indicator_codes(list(_rpd_competency_codes(ctx.rpd)))
     if not plan_codes:
         return RuleResult(
             rule_id="R011",
@@ -406,6 +454,444 @@ def _rule_not_in_methodology(rule_id: str, title: str) -> RuleFn:
         )
 
     return _rule
+
+
+def rule_r015(ctx: ValidationContext) -> RuleResult:
+    """ТЗ блок А: З/У/В в таблице 3.1 буквально копируют формулировки из п.2."""
+    section2 = _section2_phrases_for_plan(ctx)
+    topics31 = {_normalize_zuv_phrase(p) for p in ctx.rpd.topics31_zuv_phrases if p.strip()}
+
+    if not section2 and not topics31:
+        return RuleResult(
+            rule_id="R015",
+            name="З/У/В в таблице 3.1 совпадают с разделом 2 (exact match)",
+            passed=True,
+            skipped=True,
+            message="З/У/В не извлечены — проверка пропущена",
+        )
+    if not section2:
+        return RuleResult(
+            rule_id="R015",
+            name="З/У/В в таблице 3.1 совпадают с разделом 2 (exact match)",
+            passed=True,
+            skipped=True,
+            message="З/У/В раздела 2 не извлечены — проверка пропущена",
+        )
+    if not topics31:
+        return RuleResult(
+            rule_id="R015",
+            name="З/У/В в таблице 3.1 совпадают с разделом 2 (exact match)",
+            passed=False,
+            message="В таблице 3.1 не найдены формулировки З/У/В",
+            expected=f"{len(section2)} формулировок из п.2",
+        )
+
+    extra_in_31 = sorted(topics31 - section2)
+    missing_in_31 = sorted(section2 - topics31)
+
+    if extra_in_31:
+        hint = _zuv_hint_text(ctx, extra_in_31[0])
+        return RuleResult(
+            rule_id="R015",
+            name="З/У/В в таблице 3.1 совпадают с разделом 2 (exact match)",
+            passed=False,
+            message="В 3.1 есть перефразирование или лишние формулировки (не из п.2)"
+            + (f". {hint}" if hint else ""),
+            expected=extra_in_31[0][:120],
+            actual="не найдено в п.2",
+        )
+
+    if missing_in_31:
+        return RuleResult(
+            rule_id="R015",
+            name="З/У/В в таблице 3.1 совпадают с разделом 2 (exact match)",
+            passed=False,
+            message="В 3.1 пропущены формулировки из п.2 — скопируйте текст буквально",
+            expected=missing_in_31[0][:120],
+            actual=f"отсутствует в 3.1 ({len(missing_in_31)} шт.)",
+        )
+
+    return RuleResult(
+        rule_id="R015",
+        name="З/У/В в таблице 3.1 совпадают с разделом 2 (exact match)",
+        passed=True,
+        message="Все формулировки 3.1 совпадают с разделом 2",
+    )
+
+
+def rule_r016(ctx: ValidationContext) -> RuleResult:
+    """ТЗ блок В: обязательные строки 3.5, часы контроля = план, минимумы."""
+    rpd = ctx.rpd
+    if rpd.sr_table_total is None and not rpd.sr_rows:
+        return RuleResult(
+            rule_id="R016",
+            name="Таблица 3.5: обязательные виды СР и часы контроля",
+            passed=True,
+            skipped=True,
+            message="Таблица 3.5 не извлечена — проверка пропущена",
+        )
+
+    issues: list[str] = []
+
+    if not rpd.sr_has_current_control:
+        issues.append("нет строки «Подготовка к текущему контролю»")
+
+    if _is_extramural_form(ctx.plan_form) and not rpd.sr_has_homework_control:
+        issues.append("для заочной формы нет «Подготовки к домашним контрольным работам»")
+
+    plan_control = ctx.discipline.hours_control
+    rpd_control = rpd.sr_control_work_hours
+
+    if plan_control is None:
+        pass
+    elif plan_control == 0:
+        if rpd_control is not None and rpd_control > 0:
+            issues.append(f"в плане нет контроля, в 3.5 указано {rpd_control} ч (нужен прочерк)")
+    elif rpd_control is not None and rpd_control != plan_control:
+        issues.append(f"часы контрольной в 3.5 ({rpd_control}) ≠ плану ({plan_control})")
+    elif rpd_control is not None and 0 < rpd_control < 10:
+        issues.append(f"контрольная работа {rpd_control} ч < минимума 10 ч")
+
+    kr_h = rpd.sr_course_work_hours_35
+    if kr_h is not None and kr_h > 0 and kr_h < 30:
+        issues.append(f"курсовая работа в 3.5: {kr_h} ч < 30 ч")
+    kp_h = rpd.sr_course_project_hours_35
+    if kp_h is not None and kp_h > 0 and kp_h < 40:
+        issues.append(f"курсовой проект в 3.5: {kp_h} ч < 40 ч")
+
+    passed = not issues
+    return RuleResult(
+        rule_id="R016",
+        name="Таблица 3.5: обязательные виды СР и часы контроля",
+        passed=passed,
+        message="Таблица 3.5 соответствует требованиям" if passed else "; ".join(issues),
+        expected=str(plan_control) if plan_control else "прочерк",
+        actual=str(rpd_control) if rpd_control is not None else None,
+    )
+
+
+def rule_r017(ctx: ValidationContext) -> RuleResult:
+    """ТЗ блок Б: в матрице 3.1 КР/КП/контрольные — только +/-, без часов."""
+    if not ctx.rpd.topics31_has_flag_columns:
+        return RuleResult(
+            rule_id="R017",
+            name="Таблица 3.1: КР/КП/контрольные отмечены +/- (без часов)",
+            passed=True,
+            skipped=True,
+            message="Колонки КР/КП в таблице 3.1 не найдены — проверка пропущена",
+        )
+    violations = ctx.rpd.topics31_flag_hour_violations
+    if violations:
+        return RuleResult(
+            rule_id="R017",
+            name="Таблица 3.1: КР/КП/контрольные отмечены +/- (без часов)",
+            passed=False,
+            message="В таблице 3.1 указаны часы вместо +/- для КР/КП/контрольных",
+            actual=violations[0][:120],
+        )
+    return RuleResult(
+        rule_id="R017",
+        name="Таблица 3.1: КР/КП/контрольные отмечены +/- (без часов)",
+        passed=True,
+        message="КР/КП/контрольные отмечены корректно (+/-, без часов)",
+    )
+
+
+def rule_r018(ctx: ValidationContext) -> RuleResult:
+    """ТЗ блок Г: нумерация X.Y вопросов и сумма часов детализации = итог 3.5."""
+    questions = ctx.rpd.sr_questions
+    if not questions:
+        return RuleResult(
+            rule_id="R018",
+            name="Детализация СР: нумерация X.Y и сумма часов",
+            passed=True,
+            skipped=True,
+            message="Таблица вопросов для самостоятельного изучения не найдена — пропущено",
+        )
+
+    topic_set = set(ctx.rpd.topic_numbers)
+    bad_nums: list[str] = []
+    for q in questions:
+        topic = q.get("topic")
+        number = q.get("number", "")
+        if topic_set and topic not in topic_set:
+            bad_nums.append(number)
+
+    q_total = ctx.rpd.sr_questions_hours_total
+    budget = ctx.rpd.sr_self_study_budget_hours
+    sr_total = ctx.rpd.sr_table_total
+    compare_to = budget if budget is not None else sr_total
+
+    if bad_nums:
+        return RuleResult(
+            rule_id="R018",
+            name="Детализация СР: нумерация X.Y и сумма часов",
+            passed=False,
+            message=f"Вопросы {', '.join(bad_nums[:5])} не привязаны к темам из 3.1",
+            expected=f"темы: {sorted(topic_set)[:10]}",
+            actual=bad_nums[0],
+        )
+
+    if q_total is not None and compare_to is not None and q_total != compare_to:
+        return RuleResult(
+            rule_id="R018",
+            name="Детализация СР: нумерация X.Y и сумма часов",
+            passed=False,
+            message="Сумма часов по вопросам ≠ итогу детализации в 3.5",
+            expected=str(compare_to),
+            actual=str(q_total),
+        )
+
+    if q_total is not None and compare_to is None:
+        return RuleResult(
+            rule_id="R018",
+            name="Детализация СР: нумерация X.Y и сумма часов",
+            passed=True,
+            message="Нумерация X.Y корректна; итог 3.5 для сверки суммы не найден",
+        )
+
+    return RuleResult(
+        rule_id="R018",
+        name="Детализация СР: нумерация X.Y и сумма часов",
+        passed=True,
+        message="Нумерация и сумма часов детализации согласованы",
+        expected=str(compare_to) if compare_to is not None else None,
+        actual=str(q_total) if q_total is not None else None,
+    )
+
+
+def rule_r019(ctx: ValidationContext) -> RuleResult:
+    """ТЗ блок Г: матрица 3.6 — суммы, темы, СР ≥ вопросы по теме."""
+    matrix = ctx.rpd.matrix_36_rows
+    if not matrix:
+        return RuleResult(
+            rule_id="R019",
+            name="Матрица 3.6: суммы часов и СР ≥ вопросы по теме",
+            passed=True,
+            skipped=True,
+            message="Матрица 3.6 не извлечена — проверка пропущена",
+        )
+
+    topic_set = set(ctx.rpd.topic_numbers)
+    matrix_topics = {row["topic"] for row in matrix if row.get("topic") is not None}
+
+    if topic_set:
+        missing = sorted(topic_set - matrix_topics)
+        extra = sorted(matrix_topics - topic_set)
+        if missing or extra:
+            detail = []
+            if missing:
+                detail.append(f"нет тем {missing[:5]}")
+            if extra:
+                detail.append(f"лишние темы {extra[:5]}")
+            return RuleResult(
+                rule_id="R019",
+                name="Матрица 3.6: суммы часов и СР ≥ вопросы по теме",
+                passed=False,
+                message="Темы матрицы 3.6 не совпадают с таблицей 3.1: " + "; ".join(detail),
+            )
+
+    col_sums = {"lec": 0, "prac": 0, "lab": 0, "sr": 0, "total": 0}
+    col_present = {k: False for k in col_sums}
+    for row in matrix:
+        for key in col_sums:
+            val = row.get(key)
+            if val is not None:
+                col_sums[key] += val
+                col_present[key] = True
+
+    totals = ctx.rpd.matrix_36_col_totals
+    if totals:
+        for key in ("lec", "prac", "lab", "sr", "total"):
+            if not col_present.get(key):
+                continue
+            expected = totals.get(key)
+            if expected is not None and col_sums[key] != expected:
+                return RuleResult(
+                    rule_id="R019",
+                    name="Матрица 3.6: суммы часов и СР ≥ вопросы по теме",
+                    passed=False,
+                    message=f"Сумма по столбцу «{key}» ({col_sums[key]}) ≠ итогу ({expected})",
+                    expected=str(expected),
+                    actual=str(col_sums[key]),
+                )
+
+    question_hours_by_topic: dict[int, int] = {}
+    for q in ctx.rpd.sr_questions:
+        topic = q.get("topic")
+        hours = q.get("hours")
+        if topic is not None and hours is not None:
+            question_hours_by_topic[topic] = question_hours_by_topic.get(topic, 0) + hours
+
+    for row in matrix:
+        topic = row.get("topic")
+        sr_hours = row.get("sr")
+        if topic is None or sr_hours is None:
+            continue
+        q_hours = question_hours_by_topic.get(topic, 0)
+        if q_hours > 0 and sr_hours < q_hours:
+            return RuleResult(
+                rule_id="R019",
+                name="Матрица 3.6: суммы часов и СР ≥ вопросы по теме",
+                passed=False,
+                message=f"Тема {topic}: СР в 3.6 ({sr_hours} ч) < суммы вопросов ({q_hours} ч)",
+                expected=f"≥{q_hours}",
+                actual=str(sr_hours),
+            )
+
+    for row in matrix:
+        parts = [row.get(k) for k in ("lec", "prac", "lab", "sr")]
+        nums = [p for p in parts if p is not None]
+        total = row.get("total")
+        if nums and total is not None and sum(nums) != total:
+            return RuleResult(
+                rule_id="R019",
+                name="Матрица 3.6: суммы часов и СР ≥ вопросы по теме",
+                passed=False,
+                message=f"Тема {row.get('topic')}: сумма по строке ({sum(nums)}) ≠ итогу ({total})",
+                expected=str(total),
+                actual=str(sum(nums)),
+            )
+
+    return RuleResult(
+        rule_id="R019",
+        name="Матрица 3.6: суммы часов и СР ≥ вопросы по теме",
+        passed=True,
+        message="Матрица 3.6 согласована с темами и вопросами",
+    )
+
+
+def rule_r024(ctx: ValidationContext) -> RuleResult:
+    """ТЗ: профессиональные компетенции (ПК) всегда имеют группы."""
+    if ctx.rpd.pk_groups_ok is None:
+        return RuleResult(
+            rule_id="R024",
+            name="ПК в разделе 2 имеют группы (внутренние группы вуза)",
+            passed=True,
+            skipped=True,
+            message="ПК в РПД не найдены — проверка пропущена",
+        )
+    passed = ctx.rpd.pk_groups_ok
+    return RuleResult(
+        rule_id="R024",
+        name="ПК в разделе 2 имеют группы (внутренние группы вуза)",
+        passed=passed,
+        message="Все ПК сгруппированы" if passed else "Есть ПК без группы в таблице 2.1",
+        actual="; ".join(ctx.rpd.pk_indicators_without_group[:5]) if not passed else None,
+    )
+
+
+def rule_r025(ctx: ValidationContext) -> RuleResult:
+    """ТЗ: лекции + практики + лабораторные = контакт в 1.3."""
+    vol = ctx.rpd.volume
+    parts = [vol.lectures, vol.practical, vol.lab]
+    if all(p is None for p in parts):
+        return RuleResult(
+            rule_id="R025",
+            name="Лекции + практики + лабораторные = контакт в 1.3",
+            passed=True,
+            skipped=True,
+            message="Детализация лек/практ/лаб в 1.3 не найдена — пропущено",
+        )
+    contact = _rpd_contact_hours(ctx.rpd)
+    if contact is None:
+        return RuleResult(
+            rule_id="R025",
+            name="Лекции + практики + лабораторные = контакт в 1.3",
+            passed=True,
+            skipped=True,
+            message="Контактные часы в 1.3 не найдены — пропущено",
+        )
+    breakdown_sum = (vol.lectures or 0) + (vol.practical or 0) + (vol.lab or 0)
+    passed = breakdown_sum == contact
+    return RuleResult(
+        rule_id="R025",
+        name="Лекции + практики + лабораторные = контакт в 1.3",
+        passed=passed,
+        message="Разбивка контакта согласована" if passed else "Лек+практ+лаб ≠ контакт в 1.3",
+        expected=str(contact),
+        actual=str(breakdown_sum),
+    )
+
+
+def rule_r026(ctx: ValidationContext) -> RuleResult:
+    """ТЗ: сумма лек/практ/лаб по темам 3.1/3.2 = контакт по плану (дневная форма)."""
+    rpd_lec = ctx.rpd.topics_lecture_hours or ctx.rpd.volume.lectures
+    rpd_prac = ctx.rpd.topics_practical_hours or ctx.rpd.volume.practical
+    rpd_lab = ctx.rpd.volume.lab
+
+    if rpd_lec is None and rpd_prac is None and rpd_lab is None:
+        return RuleResult(
+            rule_id="R026",
+            name="Сумма лек/практ/лаб по темам согласована с 1.3",
+            passed=True,
+            skipped=True,
+            message="Часы по видам занятий в темах не извлечены — пропущено",
+        )
+
+    topics_sum = (rpd_lec or 0) + (rpd_prac or 0) + (rpd_lab or 0)
+    contact_13 = _rpd_contact_hours(ctx.rpd)
+    if contact_13 is not None and topics_sum != contact_13:
+        return RuleResult(
+            rule_id="R026",
+            name="Сумма лек/практ/лаб по темам согласована с 1.3",
+            passed=False,
+            message="Сумма лек+практ+лаб по темам ≠ контакту в 1.3",
+            expected=str(contact_13),
+            actual=str(topics_sum),
+        )
+
+    plan_contact = ctx.discipline.hours_contact or ctx.discipline.hours_aud
+    if plan_contact is not None and topics_sum != plan_contact:
+        return RuleResult(
+            rule_id="R026",
+            name="Сумма лек/практ/лаб по темам согласована с 1.3",
+            passed=False,
+            message="Сумма лек+практ+лаб по темам ≠ контактным часам УП",
+            expected=str(plan_contact),
+            actual=str(topics_sum),
+        )
+
+    return RuleResult(
+        rule_id="R026",
+        name="Сумма лек/практ/лаб по темам согласована с 1.3",
+        passed=True,
+        message="Суммы по видам занятий согласованы",
+        expected=str(plan_contact or contact_13),
+        actual=str(topics_sum),
+    )
+
+
+def rule_r027(ctx: ValidationContext) -> RuleResult:
+    """ТЗ: детализация 3.5 — сумма строк (кроме итога) согласована с итогом."""
+    rows = ctx.rpd.sr_rows
+    total = ctx.rpd.sr_table_total
+    if not rows or total is None:
+        return RuleResult(
+            rule_id="R027",
+            name="Сумма строк таблицы 3.5 = итог СР",
+            passed=True,
+            skipped=True,
+            message="Строки таблицы 3.5 не извлечены — пропущено",
+        )
+    row_sum = sum(r["hours"] for r in rows if r.get("hours") is not None)
+    if row_sum != total:
+        return RuleResult(
+            rule_id="R027",
+            name="Сумма строк таблицы 3.5 = итог СР",
+            passed=False,
+            message="Сумма по видам СР ≠ итоговой строке 3.5",
+            expected=str(total),
+            actual=str(row_sum),
+        )
+    return RuleResult(
+        rule_id="R027",
+        name="Сумма строк таблицы 3.5 = итог СР",
+        passed=True,
+        message="Сумма строк 3.5 согласована с итогом",
+        expected=str(total),
+        actual=str(row_sum),
+    )
 
 
 def rule_r013(ctx: ValidationContext) -> RuleResult:
@@ -638,6 +1124,150 @@ def rule_r023(ctx: ValidationContext) -> RuleResult:
     )
 
 
+def _assessment_tuple(form_type: str, semester: int | None) -> tuple[str, int]:
+    return (form_type, semester or 0)
+
+
+def _plan_assessments(ctx: ValidationContext) -> set[tuple[str, int]]:
+    items = getattr(ctx.discipline, "assessments", None) or []
+    return {_assessment_tuple(a.form_type, a.semester) for a in items}
+
+
+def _rpd_assessments(ctx: ValidationContext) -> set[tuple[str, int]]:
+    result: set[tuple[str, int]] = set()
+    for item in ctx.rpd.topics31_assessments:
+        result.add(_assessment_tuple(item.get("form_type", ""), item.get("semester")))
+    return {x for x in result if x[0]}
+
+
+def rule_r028(ctx: ValidationContext) -> RuleResult:
+    """ТЗ блок Б: формы аттестации в 3.1 по семестрам = учебному плану."""
+    plan_set = _plan_assessments(ctx)
+    rpd_set = _rpd_assessments(ctx)
+    if not plan_set and not rpd_set:
+        return RuleResult(
+            rule_id="R028",
+            name="Формы аттестации в 3.1 соответствуют учебному плану",
+            passed=True,
+            skipped=True,
+            message="Формы аттестации не извлечены — проверка пропущена",
+        )
+    if not plan_set:
+        return RuleResult(
+            rule_id="R028",
+            name="Формы аттестации в 3.1 соответствуют учебному плану",
+            passed=True,
+            skipped=True,
+            message="В УП нет форм аттестации — проверка пропущена",
+        )
+    if not rpd_set:
+        return RuleResult(
+            rule_id="R028",
+            name="Формы аттестации в 3.1 соответствуют учебному плану",
+            passed=False,
+            message="В таблице 3.1 не найдены формы аттестации по семестрам",
+            expected=_format_assessment_set(plan_set),
+        )
+    missing = sorted(plan_set - rpd_set)
+    extra = sorted(rpd_set - plan_set)
+    if missing or extra:
+        parts = []
+        if missing:
+            parts.append(f"нет в РПД: {_format_assessment_set(missing)}")
+        if extra:
+            parts.append(f"лишние в РПД: {_format_assessment_set(extra)}")
+        return RuleResult(
+            rule_id="R028",
+            name="Формы аттестации в 3.1 соответствуют учебному плану",
+            passed=False,
+            message="; ".join(parts),
+            expected=_format_assessment_set(plan_set),
+            actual=_format_assessment_set(rpd_set),
+        )
+    return RuleResult(
+        rule_id="R028",
+        name="Формы аттестации в 3.1 соответствуют учебному плану",
+        passed=True,
+        message="Формы аттестации и семестры совпадают с УП",
+    )
+
+
+def _format_assessment_set(items: set[tuple[str, int]] | list[tuple[str, int]]) -> str:
+    labels = {
+        "exam": "экзамен",
+        "zachet": "зачёт",
+        "zachet_graded": "зачёт с оц.",
+        "kp": "КП",
+        "kr": "КР",
+        "control_work": "контрольная",
+    }
+    parts = []
+    for form_type, semester in sorted(items):
+        name = labels.get(form_type, form_type)
+        parts.append(f"{name} (сем.{semester})" if semester else name)
+    return "; ".join(parts)
+
+
+def rule_r029(ctx: ValidationContext) -> RuleResult:
+    """ТЗ: названия тем в 3.1/3.2 выделены жирным (заголовок vs детализация)."""
+    topics = ctx.rpd.topic_numbers
+    bold = ctx.rpd.topic_titles_bold
+    if not topics:
+        return RuleResult(
+            rule_id="R029",
+            name="Названия тем выделены жирным шрифтом",
+            passed=True,
+            skipped=True,
+            message="Темы не извлечены — проверка пропущена",
+        )
+    bold_nums = {item.get("topic") for item in bold if item.get("topic") is not None}
+    missing = sorted(set(topics) - bold_nums)
+    if missing:
+        return RuleResult(
+            rule_id="R029",
+            name="Названия тем выделены жирным шрифтом",
+            passed=False,
+            message=f"Темы без жирного заголовка: {missing[:8]}",
+            expected=f"жирный заголовок для тем {sorted(topics)[:10]}",
+            actual=f"жирно: {sorted(bold_nums)[:10]}",
+            severity="warning",
+        )
+    return RuleResult(
+        rule_id="R029",
+        name="Названия тем выделены жирным шрифтом",
+        passed=True,
+        message="Заголовки тем оформлены жирным",
+    )
+
+
+def rule_r030(ctx: ValidationContext) -> RuleResult:
+    """ТЗ: лист «Сведения о переутверждении» заполнен (есть годы)."""
+    if not ctx.rpd.has_reapproval_section:
+        return RuleResult(
+            rule_id="R030",
+            name="Лист переутверждения заполнен",
+            passed=True,
+            skipped=True,
+            message="Раздел переутверждения не найден — проверка пропущена",
+        )
+    if ctx.rpd.reapproval_years:
+        return RuleResult(
+            rule_id="R030",
+            name="Лист переутверждения заполнен",
+            passed=True,
+            message=f"Указаны годы переутверждения: {ctx.rpd.reapproval_years}",
+        )
+    return RuleResult(
+        rule_id="R030",
+        name="Лист переутверждения заполнен",
+        passed=False,
+        message="Раздел «Сведения о переутверждении» есть, но годы не заполнены",
+        expected="год(ы) переутверждения в таблице",
+        actual="пусто",
+        severity="warning",
+    )
+
+
 RULES: list[tuple[str, RuleFn]] = [
     ("R001", rule_r001),
     ("R002", rule_r002),
@@ -653,18 +1283,59 @@ RULES: list[tuple[str, RuleFn]] = [
     ("R012", rule_r012),
     ("R013", rule_r013),
     ("R014", rule_r014),
-    ("R015", _rule_not_in_methodology("R015", "Правило R015")),
-    ("R016", _rule_not_in_methodology("R016", "Правило R016")),
-    ("R017", _rule_not_in_methodology("R017", "Правило R017")),
-    ("R018", _rule_not_in_methodology("R018", "Правило R018")),
-    ("R019", _rule_not_in_methodology("R019", "Правило R019")),
+    ("R015", rule_r015),
+    ("R016", rule_r016),
+    ("R017", rule_r017),
+    ("R018", rule_r018),
+    ("R019", rule_r019),
     ("R020", rule_r020),
     ("R021", rule_r021),
     ("R022", rule_r022),
     ("R023", rule_r023),
+    ("R024", rule_r024),
+    ("R025", rule_r025),
+    ("R026", rule_r026),
+    ("R027", rule_r027),
+    ("R028", rule_r028),
+    ("R029", rule_r029),
+    ("R030", rule_r030),
 ]
 
 DEFAULT_RULE_IDS = [
+    "R001",
+    "R002",
+    "R003",
+    "R004",
+    "R005",
+    "R006",
+    "R007",
+    "R008",
+    "R009",
+    "R010",
+    "R011",
+    "R012",
+    "R013",
+    "R014",
+    "R015",
+    "R016",
+    "R017",
+    "R018",
+    "R019",
+    "R020",
+    "R021",
+    "R022",
+    "R023",
+    "R024",
+    "R025",
+    "R026",
+    "R027",
+    "R028",
+    "R029",
+    "R030",
+]
+
+# Базовые правила MVP (golden-тесты, обратная совместимость)
+CORE_RULE_IDS = [
     "R001",
     "R002",
     "R003",

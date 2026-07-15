@@ -4,414 +4,150 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Syllabus — сверка УП ↔ РПД ↔ ФОС</title>
-  <style>
-    :root {
-      --bg: #f3f3f3;
-      --card: #fff;
-      --border: #e1e1e1;
-      --text: #1a1a1a;
-      --muted: #666;
-      --accent: #0078d4;
-      --ok: #107c10;
-      --fail: #d13438;
-      --warn: #ca5010;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Segoe UI", sans-serif; font-size: 13px; color: var(--text); background: var(--bg); min-height: 100vh; }
-    header {
-      background: #2b2b2b; color: #fff; padding: 10px 16px;
-      display: flex; align-items: center; gap: 16px;
-    }
-    header h1 { font-size: 15px; font-weight: 600; flex: 1; }
-    header a { color: #9cdcfe; text-decoration: none; }
-    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 42px); }
-    .sidebar { background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sidebar-head { padding: 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
-    .sidebar-head label { flex: 1; }
-    .sidebar-head input[type=file] { display: none; }
-    .btn {
-      border: 1px solid var(--border); background: #fff; border-radius: 4px;
-      padding: 7px 12px; cursor: pointer; font-size: 13px;
-    }
-    .btn:hover { background: #f5f5f5; }
-    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .btn.primary:hover { background: #106ebe; }
-    .plan-list { overflow-y: auto; flex: 1; }
-    .plan-item {
-      padding: 10px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer;
-    }
-    .plan-item:hover { background: #f5f5f5; }
-    .plan-item.active { background: #e5f1fb; border-left: 3px solid var(--accent); }
-    .plan-item .code { font-weight: 600; }
-    .plan-item .meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
-    main { padding: 16px; overflow: auto; }
-    .empty { color: var(--muted); padding: 40px; text-align: center; }
-    .plan-header {
-      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
-      padding: 16px; margin-bottom: 12px;
-    }
-    .plan-header h2 { font-size: 18px; margin-bottom: 6px; }
-    .plan-header p { color: var(--muted); }
-    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
-    .stat {
-      background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
-    }
-    .stat .label { color: var(--muted); font-size: 11px; text-transform: uppercase; }
-    .stat .value { font-size: 20px; font-weight: 600; margin-top: 4px; }
-    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); }
-    th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
-    th { background: #fafafa; font-size: 11px; text-transform: uppercase; color: var(--muted); }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-    .badge.ok { background: #dff6dd; color: var(--ok); }
-    .badge.no { background: #f3f3f3; color: var(--muted); }
-    .badge.fail { background: #fde7e9; color: var(--fail); }
-    .report-panel {
-      margin-top: 16px; background: var(--card); border: 1px solid var(--border);
-      border-radius: 8px; padding: 16px;
-    }
-    .report-panel h3 { margin-bottom: 8px; }
-    .rule-fail { color: var(--fail); }
-    .rule-ok { color: var(--ok); }
-    .toast {
-      position: fixed; bottom: 16px; right: 16px; background: #323232; color: #fff;
-      padding: 10px 16px; border-radius: 4px; display: none; z-index: 10;
-    }
-    .hint {
-      background: #fff4ce; border: 1px solid #fde047; border-radius: 8px;
-      padding: 12px 14px; margin-bottom: 12px; line-height: 1.5;
-    }
-    .hint strong { display: block; margin-bottom: 4px; }
-    .toast.show { display: block; }
-    .toast.error { background: #a4262c; max-width: 480px; white-space: pre-wrap; }
-    .selected-plan {
-      background: #e5f1fb; border: 1px solid #0078d4; border-radius: 8px;
-      padding: 10px 14px; margin-bottom: 12px;
-    }
-    .selected-plan .label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
-    .error-panel {
-      background: #fde7e9; border: 1px solid #d13438; border-radius: 8px;
-      padding: 12px 14px; margin-bottom: 12px; display: none;
-    }
-  </style>
+  <link rel="stylesheet" href="/static/css/shell.css?v=20260714c">
+  <script src="/static/js/ui_ru.js"></script>
+  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/api_utils.js?v=20260709s"></script>
+  <script src="/static/js/shell.js?v=20260714"></script>
+  <script src="/static/js/embed_mode.js"></script>
+  <script src="/static/js/plans_folder_tree.js"></script>
+  <script src="/static/js/edit_lock.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
+  <link rel="stylesheet" href="/static/css/validation-page.css?v=20260714">
 </head>
 <body>
-  <header>
-    <h1>Syllabus — сверка учебного плана, РПД и ФОС</h1>
-    <a href="/">Редактор документов</a>
-    <span style="font-size:11px;color:#ccc">парсер: <span id="parserVersion">…</span></span>
+  <header class="app-header">
+    <a class="app-brand" href="/">
+      <div class="app-logo" id="appHeaderLogo">S</div>
+      <div>
+        <h1 id="appHeaderTitle">Syllabus</h1>
+        <div class="subtitle" id="appHeaderSubtitle"></div>
+      </div>
+    </a>
+    <span class="header-context" id="appHeaderContext"></span>
+    <span class="header-extra" id="appHeaderExtra"></span>
+    <div class="header-actions" id="appHeaderActions">
+      <span class="user-chip hidden" id="headerUser"></span>
+    </div>
+    <nav class="header-nav" id="appHeaderNav"></nav>
+    <button type="button" class="btn-header hidden" id="btnHeaderLogout">Выход</button>
   </header>
 
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="sidebar-head">
-        <label class="btn primary" for="importPlx">Импорт УП</label>
-        <input type="file" id="importPlx" accept=".plx,.xlsx,.xlsm">
-        <button class="btn" id="refreshPlans" type="button">↻</button>
+  <div class="layout app-layout">
+    <aside class="sidebar app-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Учебные планы</div>
+        <input type="search" class="search-input" id="planSearch" placeholder="Поиск по папке, коду, профилю…">
       </div>
       <div class="plan-list" id="planList"></div>
     </aside>
 
-    <main id="main">
-      <div id="errorPanel" class="error-panel"></div>
-      <div class="empty">Выберите учебный план слева или импортируйте .plx / .xlsx</div>
-    </main>
+    <div class="main-col">
+      <div id="appRibbon" class="app-ribbon"></div>
+      <main id="main" class="page-main">
+        <div id="errorPanel" class="error-panel"></div>
+        <div class="empty-state page-empty">
+          <h2>Выберите учебный план</h2>
+          <p>Импортируйте УП кнопкой «Импорт УП» на ленте или выберите план из списка слева.</p>
+        </div>
+      </main>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
 
-  <script>
-    const API = "/api/v1";
-    let selectedPlanId = null;
-    let disciplines = [];
-    let lastRpdReport = null;
-    let lastFosReport = null;
+  <div class="sr-only" aria-hidden="true">
+    <input type="file" id="importPlx" accept=".plx,.xlsx,.xlsm">
+    <input type="file" id="uploadFolder" accept=".doc,.docx" webkitdirectory>
+    <input type="file" id="uploadRpd" accept=".doc,.docx">
+    <input type="file" id="uploadFos" accept=".doc,.docx">
+  </div>
 
-    function toast(msg, isError = false) {
-      const el = document.getElementById("toast");
-      el.textContent = msg;
-      el.classList.toggle("error", isError);
-      el.classList.add("show");
-      setTimeout(() => el.classList.remove("show"), isError ? 12000 : 4000);
-    }
-
-    const LINK_MESSAGES = {
-      discipline_not_in_plan: (code) =>
-        `Дисциплина ${code || "—"} не найдена в выбранном учебном плане.\n` +
-        `Проверьте: выбран ли нужный план слева (подсвечен синим) и файл от той же программы.`,
-      discipline_code_not_found:
-        "Не удалось определить шифр дисциплины из файла. Имя должно содержать код, например FTD_01_... или B1_O_01_07_...",
-      study_plan_not_found: "Учебный план не найден. Обновите страницу (Ctrl+F5).",
-    };
-
-    function linkErrorText(link) {
-      if (!link) return "Файл не привязан к дисциплине.";
-      if (link.message && link.message !== link.reason) return link.message;
-      const fn = LINK_MESSAGES[link.reason];
-      if (fn) return fn(link.discipline_code);
-      return link.reason || "Файл не привязан к дисциплине.";
-    }
-
-    function showErrorPanel(text) {
-      const panel = document.getElementById("errorPanel");
-      if (!panel) return;
-      panel.textContent = text;
-      panel.style.display = "block";
-    }
-
-    function hideErrorPanel() {
-      const panel = document.getElementById("errorPanel");
-      if (panel) panel.style.display = "none";
-    }
-
-    async function api(path, options = {}) {
-      const res = await fetch(API + path, options);
-      if (!res.ok) {
-        let detail = res.statusText;
-        try { const j = await res.json(); detail = j.detail || detail; } catch (_) {}
-        throw new Error(detail);
-      }
-      const ct = res.headers.get("content-type") || "";
-      if (ct.includes("application/json")) return res.json();
-      return res;
-    }
-
-    function esc(s) {
-      return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
-    }
-
-    async function loadPlans() {
-      const plans = await api("/study-plans/");
-      const list = document.getElementById("planList");
-      if (!plans.length) {
-        list.innerHTML = '<div class="empty" style="padding:20px">Нет импортированных планов</div>';
-        return;
-      }
-      list.innerHTML = plans.map(p => `
-        <div class="plan-item ${p.id === selectedPlanId ? "active" : ""}" data-id="${p.id}">
-          <div class="code">${esc(p.direction_code)} · ${esc(p.profile_name)}</div>
-          <div class="meta">${esc(p.source_file)} · ${p.disciplines_count} дисц.</div>
+  <div class="doc-modal" id="docEditorModal" aria-hidden="true">
+    <div class="doc-modal-inner">
+      <div class="doc-modal-header">
+        <h3 id="docEditorTitle">Документ</h3>
+        <div class="doc-mode-tabs">
+          <button type="button" class="doc-mode-tab active" id="docTabSections">Разделы</button>
+          <button type="button" class="doc-mode-tab hidden" id="docTabStructured">Структура</button>
         </div>
-      `).join("");
-      list.querySelectorAll(".plan-item").forEach(el => {
-        el.addEventListener("click", () => selectPlan(el.dataset.id));
-      });
-    }
-
-    async function selectPlan(planId) {
-      selectedPlanId = planId;
-      hideErrorPanel();
-      await loadPlans();
-      const plan = await api(`/study-plans/${planId}/`);
-      disciplines = await api(`/study-plans/${planId}/disciplines/`);
-      lastRpdReport = null;
-      lastFosReport = null;
-      renderPlan(plan);
-    }
-
-    function docBadge(id) {
-      return id
-        ? '<span class="badge ok">есть</span>'
-        : '<span class="badge no">нет</span>';
-    }
-
-    function renderPlan(plan) {
-      const main = document.getElementById("main");
-      const rows = disciplines.map(d => `
-        <tr>
-          <td>${esc(d.code)}</td>
-          <td>${esc(d.name)}</td>
-          <td>${d.credits ?? "—"}</td>
-          <td>${docBadge(d.document_id)}</td>
-          <td>${docBadge(d.fos_document_id)}</td>
-          <td>
-            <label class="btn" style="font-size:11px;padding:4px 8px" title="Тот же загрузчик — тип определяется по имени файла">
-              Файл<input type="file" accept=".docx" hidden data-upload="${d.id}">
-            </label>
-          </td>
-        </tr>
-      `).join("");
-
-      main.innerHTML = `
-        <div id="errorPanel" class="error-panel"></div>
-        <div class="selected-plan">
-          <div class="label">Выбранный учебный план</div>
-          <strong>${esc(plan.direction_code)} · ${esc(plan.profile_name)}</strong><br>
-          <span style="color:var(--muted)">${esc(plan.source_file)}</span>
+        <div class="doc-modal-actions">
+          <button class="btn" id="docEditorFocus" type="button" title="Свернуть боковые панели">На весь экран</button>
+          <button class="btn primary" id="docEditorSave" type="button" title="Сохранить текущий раздел">Сохранить</button>
+          <button class="btn" id="docEditorRevalidate" type="button">Сверка</button>
+          <button class="btn" id="docEditorExportDocx" type="button" title="Сохранить и скачать DOCX по макету">DOCX</button>
+          <button class="btn" id="docEditorExportPdf" type="button" title="PDF для печати">PDF</button>
+          <button class="btn ghost" id="docEditorClose" type="button">Закрыть</button>
         </div>
-        <div class="plan-header">
-          <h2>${esc(plan.direction_name)} (${esc(plan.direction_code)})</h2>
-          <p>${esc(plan.profile_name)} · ${esc(plan.source_file)} · ${esc(plan.form)} ${plan.year || ""}</p>
+      </div>
+      <div class="doc-issues empty" id="docEditorIssues">
+        <div class="doc-issues-head" id="docIssuesHead">
+          <h4 id="docIssuesTitle">Ошибки сверки</h4>
+          <button type="button" class="doc-panel-toggle" id="docIssuesToggle" title="Свернуть или развернуть">Свернуть</button>
         </div>
-        <div class="toolbar">
-          <label class="btn primary" for="uploadRpd">Загрузить РПД (.docx)</label>
-          <input type="file" id="uploadRpd" accept=".docx" hidden>
-          <label class="btn primary" for="uploadFos">Загрузить ФОС (FOS_*.docx)</label>
-          <input type="file" id="uploadFos" accept=".docx" hidden>
-          <span style="flex:1"></span>
-          <button class="btn" id="btnValidateRpd" type="button">Сверка РПД</button>
-          <button class="btn" id="btnValidateFos" type="button">Сверка ФОС</button>
-          <button class="btn" id="btnReportJson" type="button">Отчёт JSON</button>
-          <button class="btn" id="btnReportHtml" type="button">Отчёт HTML</button>
+        <div class="doc-issues-body" id="docEditorIssuesBody"></div>
+      </div>
+      <div class="doc-modal-body" id="docEditorBody">
+        <aside class="doc-sections">
+          <div class="doc-sections-head">
+            <span>Разделы</span>
+            <button type="button" class="doc-panel-toggle" id="docSectionsToggle" title="Свернуть список разделов">Свернуть</button>
+          </div>
+          <div class="doc-sections-list" id="docEditorSections"></div>
+        </aside>
+        <div class="doc-editor-main">
+          <div class="doc-editor-title" id="docEditorSectionTitle">Выберите раздел</div>
+          <div class="doc-rule-hint" id="docEditorRuleHint"></div>
+          <div class="doc-editor-wrap">
+            <div class="doc-editor-page">
+              <textarea id="docEditor"></textarea>
+            </div>
+          </div>
         </div>
-        <div class="hint">
-          <strong>Как загрузить документы</strong>
-          1) Выберите учебный план слева (после импорта .plx).<br>
-          2) Нажмите «Загрузить РПД» или «Загрузить ФОС» выше — файл привяжется к дисциплине
-          <b>автоматически</b> по шифру в имени файла (например
-          <code>FTD_01_...k52.docx</code>, <code>FOS_FTD_01_...k52.docx</code>).<br>
-          3) В таблице колонки «РПД» / «ФОС» сменятся на «есть» — тогда доступна сверка.
+        <aside class="doc-assistant" id="docAssistant" aria-hidden="false">
+          <div class="doc-assistant-head">
+            <span>ИИ-помощник</span>
+            <span class="doc-assistant-badge" id="docAssistantBadge" title="Режим ответа"></span>
+            <button type="button" class="doc-panel-toggle" id="docAssistantToggle" title="Свернуть панель">Свернуть</button>
+          </div>
+          <div class="doc-assistant-body">
+            <div class="doc-assistant-context" id="docAssistantContext">Выберите ошибку сверки — помощник подскажет, где править.</div>
+            <div class="doc-assistant-quick">
+              <button type="button" class="btn sm" data-assist-prompt="explain">Объяснить ошибку</button>
+              <button type="button" class="btn sm" data-assist-prompt="where">Где править?</button>
+              <button type="button" class="btn sm" data-assist-prompt="steps">Шаги исправления</button>
+            </div>
+            <div class="doc-assistant-messages" id="docAssistantMessages"></div>
+            <form class="doc-assistant-form" id="docAssistantForm">
+              <textarea id="docAssistantInput" rows="2" placeholder="Спросите про ошибку сверки…"></textarea>
+              <button type="submit" class="btn primary sm" id="docAssistantSend">Отправить</button>
+            </form>
+          </div>
+        </aside>
+      </div>
+      <div id="docStructuredPanel" class="doc-structured-panel hidden">
+        <aside class="doc-structured-sidebar">
+          <button type="button" class="struct-tab active" data-struct="topics">Темы</button>
+          <button type="button" class="struct-tab" data-struct="zuv">ЗУВ</button>
+          <button type="button" class="struct-tab" data-struct="literature">Литература</button>
+        </aside>
+        <div class="doc-structured-main">
+          <div class="struct-toolbar">
+            <button type="button" class="btn sm" id="structAddRow">Строка</button>
+            <button type="button" class="btn sm" id="structRefreshFromDoc">Из документа</button>
+            <button type="button" class="btn sm primary" id="structApplyToDoc">В документ</button>
+          </div>
+          <div id="structEditorHost" class="struct-editor-host"></div>
         </div>
-        <div class="stats" id="stats"></div>
-        <table>
-          <thead>
-            <tr>
-              <th>Шифр</th><th>Дисциплина</th><th>з.е.</th><th>РПД</th><th>ФОС</th><th>Загрузить</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div class="report-panel" id="reportPanel" style="display:none"></div>
-      `;
+      </div>
+    </div>
+  </div>
 
-      document.getElementById("btnValidateRpd").onclick = () => runValidation("rpd");
-      document.getElementById("btnValidateFos").onclick = () => runValidation("fos");
-      document.getElementById("btnReportJson").onclick = () => downloadReport("json");
-      document.getElementById("btnReportHtml").onclick = () => downloadReport("html");
-
-      const bindUpload = (inputId) => {
-        const el = document.getElementById(inputId);
-        if (!el) return;
-        el.onchange = async e => {
-          const file = e.target.files[0];
-          if (!file) return;
-          await uploadDoc(file);
-          e.target.value = "";
-        };
-      };
-      bindUpload("uploadRpd");
-      bindUpload("uploadFos");
-
-      main.querySelectorAll("input[data-upload]").forEach(input => {
-        input.addEventListener("change", async e => {
-          const file = e.target.files[0];
-          if (!file) return;
-          await uploadDoc(file);
-          e.target.value = "";
-        });
-      });
-      renderStats();
-    }
-
-    function renderStats() {
-      const stats = document.getElementById("stats");
-      if (!stats) return;
-      const withRpd = disciplines.filter(d => d.document_id).length;
-      const withFos = disciplines.filter(d => d.fos_document_id).length;
-      stats.innerHTML = `
-        <div class="stat"><div class="label">Дисциплин</div><div class="value">${disciplines.length}</div></div>
-        <div class="stat"><div class="label">С РПД</div><div class="value">${withRpd}</div></div>
-        <div class="stat"><div class="label">С ФОС</div><div class="value">${withFos}</div></div>
-        <div class="stat"><div class="label">РПД OK</div><div class="value">${lastRpdReport ? lastRpdReport.passed : "—"}</div></div>
-        <div class="stat"><div class="label">ФОС OK</div><div class="value">${lastFosReport ? lastFosReport.passed : "—"}</div></div>
-      `;
-    }
-
-    async function uploadDoc(file) {
-      if (!selectedPlanId) {
-        toast("Сначала выберите учебный план слева (клик по строке в списке)", true);
-        return;
-      }
-      hideErrorPanel();
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("study_plan_id", selectedPlanId);
-      try {
-        const doc = await api("/upload/", { method: "POST", body: fd });
-        const link = doc.program_link;
-        if (link && link.linked) {
-          toast(`Привязано: ${link.discipline_code} (${link.doc_kind || "docx"})`);
-          await selectPlan(selectedPlanId);
-        } else if (link) {
-          const text = linkErrorText(link);
-          showErrorPanel(text);
-        } else {
-          toast("Документ сохранён, но не привязан к плану.", true);
-        }
-      } catch (err) {
-        showErrorPanel(err.message);
-        toast(err.message, true);
-      }
-    }
-
-    async function runValidation(kind) {
-      if (!selectedPlanId) return;
-      const path = kind === "rpd"
-        ? `/study-plans/${selectedPlanId}/validate/`
-        : `/study-plans/${selectedPlanId}/validate-fos/`;
-      const report = await api(path);
-      if (kind === "rpd") lastRpdReport = report;
-      else lastFosReport = report;
-      renderStats();
-      renderReportPanel(kind, report);
-      toast(kind === "rpd" ? "Сверка РПД завершена" : "Сверка ФОС завершена");
-    }
-
-    function renderReportPanel(kind, report) {
-      const panel = document.getElementById("reportPanel");
-      panel.style.display = "block";
-      const title = kind === "rpd" ? "Результаты сверки РПД ↔ УП" : "Результаты сверки ФОС ↔ УП/РПД";
-      const summary = kind === "rpd"
-        ? `Проверено ${report.checked}, OK ${report.passed}, ошибок ${report.failed}, без РПД ${report.missing_rpd}`
-        : `Проверено ${report.checked}, OK ${report.passed}, ошибок ${report.failed}, без ФОС ${report.missing_fos}`;
-
-      const items = (report.items || []).map(item => {
-        const failed = (item.results || []).filter(r => !r.skipped && r.severity === "critical" && !r.passed);
-        const rules = failed.length
-          ? failed.map(r => `<div class="rule-fail">${esc(r.rule_id)}: ${esc(r.message)}</div>`).join("")
-          : `<div class="rule-ok">${item.skipped ? "пропущено" : "OK"}</div>`;
-        return `<tr><td>${esc(item.discipline_code)}</td><td>${item.passed ? '<span class="badge ok">OK</span>' : '<span class="badge fail">FAIL</span>'}</td><td>${rules}</td></tr>`;
-      }).join("");
-
-      panel.innerHTML = `
-        <h3>${title}</h3>
-        <p style="color:var(--muted);margin-bottom:8px">${summary}</p>
-        <table><thead><tr><th>Дисциплина</th><th>Статус</th><th>Правила</th></tr></thead><tbody>${items || "<tr><td colspan=3>Нет проверенных дисциплин</td></tr>"}</tbody></table>
-      `;
-    }
-
-    function downloadReport(format) {
-      if (!selectedPlanId) return;
-      window.open(`${API}/study-plans/${selectedPlanId}/validation-report/?format=${format}`, "_blank");
-    }
-
-    document.getElementById("importPlx").addEventListener("change", async e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const fd = new FormData();
-      fd.append("file", file);
-      try {
-        const plan = await api("/study-plans/import", { method: "POST", body: fd });
-        toast(`Импортирован: ${plan.direction_code}`);
-        selectedPlanId = plan.id;
-        await loadPlans();
-        await selectPlan(plan.id);
-      } catch (err) {
-        toast(err.message);
-      }
-      e.target.value = "";
-    });
-
-    document.getElementById("refreshPlans").onclick = loadPlans;
-    loadPlans().catch(err => toast(err.message, true));
-
-    fetch(API + "/system/info/")
-      .then(r => r.json())
-      .then(info => {
-        const el = document.getElementById("parserVersion");
-        if (el) el.textContent = info.code_parser_version || "?";
-      })
-      .catch(() => {});
-  </script>
+  <script src="/static/js/validation_rules.js?v=20260713g"></script>
+  <script src="/static/js/validation_assistant.js?v=20260713f"></script>
+  <script src="/static/js/validation_fix.js?v=20260713e"></script>
+  <script src="/static/js/validation_page.js?v=20260714s2"></script>
+  <script src="/static/js/validation_editor.js?v=20260714s2"></script>
+  <script src="/static/js/validation_structured.js"></script>
 </body>
 </html>

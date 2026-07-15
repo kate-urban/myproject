@@ -24,6 +24,7 @@ class ProgramLinkResult:
         plan_discipline_id: uuid.UUID | None = None,
         study_plan_id: uuid.UUID | None = None,
         program_status: str | None = None,
+        program_id: uuid.UUID | None = None,
         doc_kind: str | None = None,
         reason: str | None = None,
     ) -> None:
@@ -32,6 +33,7 @@ class ProgramLinkResult:
         self.plan_discipline_id = plan_discipline_id
         self.study_plan_id = study_plan_id
         self.program_status = program_status
+        self.program_id = program_id
         self.doc_kind = doc_kind
         self.reason = reason
 
@@ -131,13 +133,18 @@ async def link_document_to_program(
     if doc_kind == "fos":
         _apply_fos_extract(program, extract_fos(file_bytes, filename))
     else:
-        _apply_rpd_extract(program, extract_rpd(file_bytes, filename))
+        rpd = extract_rpd(file_bytes, filename)
+        _apply_rpd_extract(program, rpd)
+        from app.services.structured_program_sync import sync_program_from_extract
+
+        await sync_program_from_extract(db, program, rpd, discipline=discipline)
 
     return ProgramLinkResult(
         linked=True,
         discipline_code=discipline_code,
         plan_discipline_id=discipline.id,
         study_plan_id=study_plan_id,
+        program_id=program.id,
         program_status="uploaded",
         doc_kind=doc_kind,
     )

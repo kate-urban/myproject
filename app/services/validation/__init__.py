@@ -14,9 +14,10 @@ from app.services.validation.fos_engine import (
     validate_study_plan_fos,
 )
 from app.services.validation.fos_rules import DEFAULT_FOS_ONLY_RULE_IDS, DEFAULT_FOS_RULE_IDS
-from app.services.validation.rules import DEFAULT_RULE_IDS, RuleResult, ValidationContext
+from app.services.validation.rules import CORE_RULE_IDS, DEFAULT_RULE_IDS, RuleResult, ValidationContext
 
 __all__ = [
+    "CORE_RULE_IDS",
     "DEFAULT_FOS_ONLY_RULE_IDS",
     "DEFAULT_FOS_RULE_IDS",
     "DEFAULT_RULE_IDS",

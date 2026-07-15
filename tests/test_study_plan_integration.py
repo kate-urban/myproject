@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.models import Document, PlanDiscipline, Profile, Program, StudyPlan
 from app.services.importers import StudyPlanImporter
 from app.services.rpd_linker import link_document_to_program
-from app.services.validation import validate_program, validate_study_plan
+from app.services.validation import validate_program, validate_study_plan, CORE_RULE_IDS
 from app.utils.discipline_code import code_from_filename, resolve_discipline_code
 
 DESIGN_PLX = Path(__file__).resolve().parents[1] / "samples" / "M540401-2026.plx"
@@ -143,6 +143,7 @@ async def test_validate_design_b1o0107_r001_r020(db_session) -> None:
             .options(
                 selectinload(PlanDiscipline.program),
                 selectinload(PlanDiscipline.competencies),
+                selectinload(PlanDiscipline.assessments),
             )
             .where(
                 PlanDiscipline.study_plan_id == plan.id,
@@ -159,7 +160,9 @@ async def test_validate_design_b1o0107_r001_r020(db_session) -> None:
         )
     ).scalar_one()
 
-    report = validate_program(plan_loaded, discipline, discipline.program)
+    report = validate_program(
+        plan_loaded, discipline, discipline.program, rule_ids=CORE_RULE_IDS
+    )
     assert report.passed is True
     critical = [
         item for item in report.results if not item.skipped and item.severity == "critical"
@@ -208,12 +211,13 @@ async def test_validate_study_plan_batch(db_session) -> None:
             .options(
                 selectinload(PlanDiscipline.program),
                 selectinload(PlanDiscipline.competencies),
+                selectinload(PlanDiscipline.assessments),
             )
             .where(PlanDiscipline.study_plan_id == plan.id)
         )
     ).scalars().all()
 
-    report = validate_study_plan(plan_loaded, list(disciplines))
+    report = validate_study_plan(plan_loaded, list(disciplines), rule_ids=CORE_RULE_IDS)
     assert report.checked == 1
     assert report.passed == 1
     assert report.failed == 0

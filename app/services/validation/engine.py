@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.models import PlanDiscipline, Program, StudyPlan
-from app.services.rpd_extractor import RpdExtract
+from app.services.rpd_extractor import RpdExtract, enrich_rpd_competencies
 from app.services.validation.rules import (
     DEFAULT_RULE_IDS,
     RULES,
@@ -47,6 +47,7 @@ def _build_context(plan: StudyPlan, discipline: PlanDiscipline, rpd: RpdExtract)
         profile_name=profile.name,
         discipline=discipline,
         rpd=rpd,
+        plan_form=plan.form,
     )
 
 
@@ -116,6 +117,7 @@ def validate_program(
     program: Program,
     *,
     rule_ids: list[str] | None = None,
+    section_texts: list[str] | None = None,
 ) -> ValidationReport:
     if program.document_id is None:
         raise ValueError("РПД не загружена (programs.document_id пуст)")
@@ -123,6 +125,9 @@ def validate_program(
     rpd = _rpd_from_program(program)
     if rpd is None:
         raise ValueError("Метаданные РПД не извлечены — перезагрузите документ")
+
+    if section_texts:
+        rpd = enrich_rpd_competencies(rpd, section_texts)
 
     report = validate_discipline(plan, discipline, rpd, rule_ids=rule_ids)
     report.document_id = str(program.document_id)
@@ -135,6 +140,7 @@ def validate_study_plan(
     *,
     rule_ids: list[str] | None = None,
     only_with_rpd: bool = True,
+    section_texts_by_document: dict[str, list[str]] | None = None,
 ) -> PlanValidationReport:
     selected_rules = rule_ids or DEFAULT_RULE_IDS
     items: list[ValidationReport] = []
@@ -162,11 +168,15 @@ def validate_study_plan(
             continue
 
         try:
+            section_texts = None
+            if section_texts_by_document and program.document_id:
+                section_texts = section_texts_by_document.get(str(program.document_id))
             report = validate_program(
                 plan,
                 discipline,
                 program,
                 rule_ids=selected_rules,
+                section_texts=section_texts,
             )
         except ValueError as exc:
             missing_rpd += 1

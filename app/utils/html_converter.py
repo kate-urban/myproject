@@ -45,23 +45,23 @@ def insert_html_after_paragraph(
     for block in blocks:
         if first and replace_anchor:
             current.clear()
-            _render_block(block, doc, current)
+            current = _render_block(block, doc, current) or current
             first = False
             continue
         current = _insert_paragraph_after(current)
-        _render_block(block, doc, current)
+        current = _render_block(block, doc, current) or current
         first = False
     return current
 
 
-def _render_block(node, doc: Document, paragraph: Paragraph) -> None:
+def _render_block(node, doc: Document, paragraph: Paragraph) -> Paragraph | None:
     if isinstance(node, NavigableString):
         text = str(node).strip()
         if text:
             paragraph.add_run(text)
-        return
+        return paragraph
     if not isinstance(node, Tag):
-        return
+        return paragraph
 
     tag = node.name.lower()
     if tag == "p":
@@ -81,17 +81,27 @@ def _render_block(node, doc: Document, paragraph: Paragraph) -> None:
             for child in li.children:
                 _process_node(child, doc, list_paragraph)
     elif tag == "table":
-        rows = node.find_all("tr")
-        if rows:
-            cols = max(len(row.find_all(["td", "th"])) for row in rows)
-            table = doc.add_table(rows=len(rows), cols=cols)
-            for i, row in enumerate(rows):
-                cells = row.find_all(["td", "th"])
-                for j, cell in enumerate(cells):
-                    table.cell(i, j).text = cell.get_text(strip=True)
+        return _insert_table_after(paragraph, doc, node)
     else:
         for child in node.children:
             _process_node(child, doc, paragraph)
+    return paragraph
+
+
+def _insert_table_after(paragraph: Paragraph, doc: Document, node: Tag) -> Paragraph:
+    rows = node.find_all("tr")
+    if not rows:
+        return paragraph
+    cols = max(len(row.find_all(["td", "th"])) for row in rows)
+    table = doc.add_table(rows=len(rows), cols=cols)
+    tbl_el = table._tbl
+    tbl_el.getparent().remove(tbl_el)
+    paragraph._p.addnext(tbl_el)
+    for i, row in enumerate(rows):
+        cells = row.find_all(["td", "th"])
+        for j, cell in enumerate(cells):
+            table.cell(i, j).text = cell.get_text(strip=True)
+    return _insert_paragraph_after(paragraph)
 
 
 def _process_node(node, doc, parent_paragraph=None):

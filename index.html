@@ -3,341 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document Processor</title>
-    
-    <!-- TinyMCE (с поддержкой таблиц) -->
+    <title>Syllabus — Редактор документов</title>
+    <link rel="stylesheet" href="/static/css/shell.css?v=20260714c">
+    <script src="/static/js/ui_ru.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/edit_lock.js"></script>
+    <script src="/static/js/shell.js?v=20260714"></script>
+    <script src="/static/js/embed_mode.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
 
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        :root {
-            --bg-primary: #f3f3f3;
-            --bg-secondary: #ffffff;
-            --border: #e1e1e1;
-            --text-primary: #1a1a1a;
-            --text-secondary: #555;
-            --accent: #0078d4;
-            --accent-hover: #106ebe;
-            --success: #107c10;
-            --danger: #d13438;
-            --hover: #f5f5f5;
-            --selected: #e5f1fb;
-            --shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-        
-        html, body { 
-            height: 100%; 
-            font-family: 'Segoe UI', -apple-system, sans-serif; 
-            font-size: 13px;
-            color: var(--text-primary);
-            background: var(--bg-primary);
-            overflow: hidden;
-        }
-        
-        #app { height: 100vh; display: flex; flex-direction: column; }
-        
-        /* Title Bar */
-        .titlebar {
-            height: 32px;
-            background: #2b2b2b;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            padding: 0 12px;
-            font-size: 12px;
-        }
-        .titlebar-title { flex: 1; }
-        
-        /* Toolbar */
-        .toolbar {
-            height: 50px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            padding: 0 12px;
-            gap: 8px;
-            position: relative;
-            z-index: 20;
-            flex-wrap: wrap;
-        }
-        .tool-btn {
-            padding: 8px 16px;
-            background: white;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .tool-btn:hover { background: var(--hover); }
-        .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .tool-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
-        .tool-btn.primary:hover { background: var(--accent-hover); }
-        .tool-btn.success { background: var(--success); color: white; border-color: var(--success); }
-        .tool-btn.success:hover { background: #0b5e0b; }
-        
-        .tool-select {
-            padding: 8px;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            font-size: 13px;
-            min-width: 220px;
-            max-width: 320px;
-            background: #fff;
-            cursor: pointer;
-        }
-        .tool-select:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .tool-label {
-            color: var(--text-secondary);
-            font-size: 12px;
-            white-space: nowrap;
-        }
-        .tool-link {
-            color: var(--accent);
-            font-size: 12px;
-            cursor: pointer;
-            text-decoration: underline;
-            white-space: nowrap;
-        }
-        .tool-link:hover { color: var(--accent-hover); }
-        
-        /* Main Layout */
-        .main {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
-        
-        /* Sidebar */
-        .sidebar {
-            width: 260px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-        }
-        .sidebar-header {
-            padding: 12px 14px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-            border-bottom: 1px solid var(--border);
-            background: #fafafa;
-        }
-        .sidebar-content {
-            flex: 1;
-            overflow-y: auto;
-        }
-        .tree-item {
-            padding: 8px 14px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            border-left: 3px solid transparent;
-            display: flex;
-            align-items: flex-start;
-            gap: 6px;
-            line-height: 1.35;
-        }
-        .tree-item.level-2 { padding-left: 28px; font-size: 12px; }
-        .tree-item.level-3 { padding-left: 42px; font-size: 12px; color: var(--text-secondary); }
-        .tree-item.level-1.has-children { font-weight: 600; }
-        .tree-toggle {
-            width: 16px;
-            flex-shrink: 0;
-            color: var(--text-secondary);
-            user-select: none;
-            font-size: 10px;
-            margin-top: 2px;
-        }
-        .tree-label { flex: 1; }
-        .tree-children.collapsed { display: none; }
-        .tree-empty-note {
-            font-size: 11px;
-            color: #999;
-            font-style: italic;
-            margin-left: 4px;
-        }
-        .tree-item:hover { background: var(--hover); }
-        .tree-item.active { 
-            background: var(--selected); 
-            border-left-color: var(--accent);
-            font-weight: 500;
-        }
-        
-        .empty-state {
-            padding: 40px 20px;
-            text-align: center;
-            color: var(--text-secondary);
-        }
-        
-        /* Editor Area */
-        .editor-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            background: #e8e8e8;
-        }
-        
-        .editor-container {
-            flex: 1;
-            overflow: auto;
-            padding: 24px;
-            display: flex;
-            justify-content: center;
-        }
-        
-        .editor-page {
-            width: 100%;
-            max-width: 900px;
-            background: white;
-            box-shadow: var(--shadow);
-            border-radius: 2px;
-            min-height: calc(100vh - 200px);
-            padding: 20px;
-        }
-        
-        .editor-page-header {
-            padding: 10px 20px;
-            border-bottom: 1px solid var(--border);
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-        
-        /* TinyMCE стили */
-        .tox-tinymce {
-            border-radius: 4px !important;
-        }
-        
-        /* Стили для таблиц внутри TinyMCE */
-        .mce-content-body table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 15px 0;
-        }
-        .mce-content-body table td,
-        .mce-content-body table th {
-            border: 1px solid #999;
-            padding: 8px 10px;
-            text-align: left;
-            vertical-align: top;
-        }
-        .mce-content-body table th {
-            background: #f0f0f0;
-            font-weight: 600;
-        }
-        
-        /* Status Bar */
-        .statusbar {
-            height: 24px;
-            background: var(--accent);
-            color: white;
-            display: flex;
-            align-items: center;
-            padding: 0 12px;
-            font-size: 11px;
-            gap: 16px;
-        }
-        .statusbar-spacer { flex: 1; }
-        
-        /* Toast */
-        .toast-container {
-            position: fixed;
-            bottom: 40px;
-            right: 20px;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .toast {
-            background: white;
-            border-left: 4px solid var(--accent);
-            padding: 12px 16px;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            min-width: 280px;
-            animation: slideIn 0.3s ease;
-        }
-        .toast.success { border-left-color: var(--success); }
-        .toast.error { border-left-color: var(--danger); }
-        @keyframes slideIn { 
-            from { transform: translateX(100%); opacity: 0; } 
-            to { transform: translateX(0); opacity: 1; } 
-        }
-        
-        input[type="file"] { display: none; }
-    </style>
+    <link rel="stylesheet" href="/static/css/editor-page.css?v=20260710b">
 </head>
 <body>
     <div id="app">
-        <!-- Title Bar -->
-        <div class="titlebar">
-            <div class="titlebar-title">📄 Document Processor — <span id="doc-name">Без документа</span></div>
-        </div>
-
-        <!-- Toolbar -->
-        <div class="toolbar">
-            <input type="file" id="file-input" accept=".pdf,.docx">
-            <input type="file" id="template-input" accept=".docx" style="display:none">
-            <button class="tool-btn" onclick="document.getElementById('file-input').click()">📂 Открыть файл</button>
-            <button class="tool-btn primary" id="upload-btn" onclick="handleUpload()" disabled>📤 Загрузить</button>
-            <button class="tool-btn success" id="save-btn" onclick="handleSaveSection()" disabled>💾 Сохранить</button>
-
-            <span class="tool-label">Шаблон:</span>
-            <select class="tool-select" id="template-select" title="Шаблон Word для экспорта" onchange="onTemplateChange()">
-                <option value="">Загрузка...</option>
-            </select>
-            <button class="tool-btn" id="refresh-templates-btn" onclick="fetchTemplates()" title="Обновить список">🔄</button>
-            <button class="tool-btn primary" id="export-btn" onclick="handleExport()" disabled title="Скачать документ по выбранному шаблону">📥 Экспорт</button>
-            <span class="tool-link" onclick="document.getElementById('template-input').click()" title="Добавить новый .docx в каталог шаблонов">+ свой шаблон</span>
-            <a class="tool-btn" href="/validation" style="text-decoration:none">📋 Сверка УП</a>
-        </div>
-
-        <!-- Main -->
-        <div class="main">
-            <!-- Sidebar -->
-            <div class="sidebar">
-                <div class="sidebar-header">Разделы документа (<span id="sections-count">0</span>)</div>
-                <div class="sidebar-content" id="sections-list">
-                    <div class="empty-state">Загрузите документ</div>
+        <header class="app-header">
+            <a class="app-brand" href="/">
+                <div class="app-logo" id="appHeaderLogo">S</div>
+                <div>
+                    <h1 id="appHeaderTitle">Syllabus</h1>
+                    <div class="subtitle" id="appHeaderSubtitle"></div>
                 </div>
+            </a>
+            <span class="header-context" id="appHeaderContext"></span>
+            <span class="header-extra" id="appHeaderExtra">
+                <span class="doc-chip" id="doc-name" title="Текущий документ">Без документа</span>
+            </span>
+            <div class="header-actions" id="appHeaderActions">
+                <span class="user-chip hidden" id="headerUser"></span>
             </div>
+            <nav class="header-nav" id="appHeaderNav"></nav>
+            <button type="button" class="btn-header hidden" id="btnHeaderLogout">Выход</button>
+        </header>
 
-            <!-- Editor -->
+        <div id="appRibbon" class="app-ribbon"></div>
+
+        <div class="subtoolbar">
+            <span class="subtoolbar-label">Шаблон экспорта</span>
+            <select class="tool-select" id="template-select" title="Шаблон для экспорта в Word" onchange="onTemplateChange()">
+                <option value="">Загрузка…</option>
+            </select>
+            <button class="btn sm" id="refresh-templates-btn" type="button" onclick="fetchTemplates()" title="Обновить список">Обновить</button>
+            <span class="tool-link" onclick="document.getElementById('template-input').click()" title="Добавить .docx в каталог">+ шаблон</span>
+        </div>
+
+        <div class="sr-only" aria-hidden="true">
+            <input type="file" id="file-input" accept=".pdf,.docx">
+            <input type="file" id="template-input" accept=".docx">
+        </div>
+
+        <div class="workspace-main">
+            <aside class="sidebar app-sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">Разделы документа</div>
+                    <div class="sidebar-meta">Всего: <strong id="sections-count">0</strong></div>
+                    <input type="search" class="section-search" id="sectionSearch" placeholder="Поиск раздела…">
+                </div>
+                <div class="sidebar-content" id="sections-list">
+                    <div class="empty-state">
+                        <p>Откройте .docx или .pdf кнопкой «Открыть» на ленте</p>
+                    </div>
+                </div>
+            </aside>
+
             <div class="editor-area">
                 <div class="editor-container">
                     <div class="editor-page">
                         <div class="editor-page-header" id="section-title">Выберите раздел для редактирования</div>
-                        <textarea id="editor"></textarea>
+                        <div class="editor-body">
+                            <textarea id="editor"></textarea>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Status Bar -->
-        <div class="statusbar">
+        <footer class="statusbar">
+            <span class="status-dot"></span>
             <span id="status-text">Готово</span>
             <div class="statusbar-spacer"></div>
-            <span>PostgreSQL</span>
-        </div>
+            <span>База данных</span>
+        </footer>
     </div>
-
     <div class="toast-container" id="toast-container"></div>
 
     <script>
         // ===== Global State =====
         const state = {
             docId: null,
+            programId: null,
             docName: '',
             docType: '',
             sections: [],
@@ -352,12 +105,31 @@
         let editorReady = false;
         const API = `${window.location.origin}/api/v1`;
 
+        function authFetch(url, opts = {}) {
+            const headers = SyllabusAuth.authHeaders({ ...(opts.headers || {}) });
+            return fetch(url, { ...opts, headers });
+        }
+
+        function refreshEditorRibbon() {
+            SyllabusShell.initPage('editor', {
+                docId: state.docId,
+                programId: state.programId,
+                onOpenFile: () => document.getElementById('file-input').click(),
+                onSave: () => handleSaveSection(),
+                onExport: () => handleExport(),
+            });
+            const exportBtn = document.getElementById('rbExportDoc');
+            if (exportBtn) exportBtn.disabled = !state.docId || !state.selectedTemplate;
+        }
+
         // ===== Initialize TinyMCE =====
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!(await SyllabusAuth.requireAuth('/'))) return;
             tinymce.init({
                 selector: '#editor',
                 height: 600,
                 menubar: false,
+                ...(window.SyllabusUiRu?.tinymceLanguage || {}),
                 plugins: [
                     'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
                     'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
@@ -396,9 +168,7 @@
 
             // File input handler
             document.getElementById('file-input').addEventListener('change', (e) => {
-                if (e.target.files[0]) {
-                    document.getElementById('upload-btn').disabled = false;
-                }
+                if (e.target.files[0]) handleUpload();
             });
 
             document.getElementById('template-input').addEventListener('change', (e) => {
@@ -408,8 +178,14 @@
                 }
             });
 
+            document.getElementById('sectionSearch')?.addEventListener('input', () => renderSections());
+
             // Load templates
             fetchTemplates();
+            refreshEditorRibbon();
+
+            const urlDoc = new URLSearchParams(location.search).get('doc');
+            if (urlDoc) openDocumentById(urlDoc).catch(e => showToast(e.message, 'error'));
         });
 
         // ===== Toast =====
@@ -450,8 +226,7 @@
             const select = document.getElementById('template-select');
             const templateId = select.value || '';
             state.selectedTemplate = templateId;
-            const exportBtn = document.getElementById('export-btn');
-            exportBtn.disabled = !(state.docId && templateId);
+            refreshEditorRibbon();
 
             const tpl = state.templates.find(t => t.id === templateId);
             if (state.docId && tpl) {
@@ -472,14 +247,14 @@
             select.innerHTML = '<option value="">Загрузка...</option>';
 
             try {
-                const res = await fetch(`${API}/templates/`);
+                const res = await authFetch(`${API}/templates/`);
                 if (!res.ok) throw new Error(await readApiError(res));
                 const data = await res.json();
                 state.templates = data;
                 select.innerHTML = '<option value="">— выберите шаблон —</option>';
                 if (data.length === 0) {
-                    select.innerHTML = '<option value="">Нет шаблонов (папка Layout/)</option>';
-                    showToast('Шаблоны не найдены. Положите файлы в Layout/ и нажмите 🔄', 'error');
+                    select.innerHTML = '<option value="">Нет шаблонов (папка «Макеты»)</option>';
+                    showToast('Шаблоны не найдены. Положите файлы в папку «Макеты» и нажмите «Обновить»', 'error');
                 } else {
                     data.forEach(t => {
                         const option = document.createElement('option');
@@ -515,7 +290,7 @@
             formData.append('file', file);
             formData.append('name', file.name.replace(/\.docx$/i, ''));
             try {
-                const res = await fetch(`${API}/templates/`, { method: 'POST', body: formData });
+                const res = await authFetch(`${API}/templates/`, { method: 'POST', body: formData });
                 if (!res.ok) throw new Error(await readApiError(res));
                 const uploaded = await res.json();
                 showToast(`Шаблон «${uploaded.name}» добавлен в каталог`);
@@ -528,6 +303,60 @@
                 showToast('Ошибка загрузки шаблона: ' + e.message, 'error');
             }
         }
+
+        async function openDocumentById(docId) {
+            if (window.SyllabusEditLock) {
+                await SyllabusEditLock.release();
+            }
+
+            document.getElementById('status-text').textContent = 'Загрузка документа...';
+            const res = await authFetch(`${API}/documents/${docId}/`);
+            if (!res.ok) throw new Error(await readApiError(res));
+            const data = await res.json();
+
+            if (data.program_link?.program_id && window.SyllabusEditLock) {
+                try {
+                    await SyllabusEditLock.acquire(data.program_link.program_id);
+                } catch (err) {
+                    showToast(err.message, 'error');
+                    document.getElementById('status-text').textContent = `Занято: ${err.message}`;
+                    return;
+                }
+            }
+
+            state.docId = data.id;
+            state.programId = data.program_link?.program_id || null;
+            state.docName = data.filename;
+            state.docType = data.doc_type || '';
+            state.sections = data.sections || [];
+            state.collapsedNodes.clear();
+
+            document.getElementById('status-text').textContent =
+                state.programId ? `Редактирование: ${data.filename}` : 'Готово';
+
+            document.getElementById('doc-name').textContent = data.filename;
+            document.getElementById('doc-name').title = data.filename;
+            document.getElementById('sections-count').textContent = state.sections.length;
+            const search = document.getElementById('sectionSearch');
+            if (search) search.value = '';
+
+            renderSections();
+            if (state.sections.length > 0) {
+                const first = state.sections.find(s => s.content && s.content.trim()) || state.sections[0];
+                selectSection(first.id);
+            }
+            if (!autoPickTemplate(state.docType, state.docName)) {
+                updateExportState();
+            }
+            if (!state.programId) {
+                document.getElementById('status-text').textContent = 'Готово';
+            }
+            refreshEditorRibbon();
+        }
+
+        window.addEventListener('pagehide', () => {
+            if (window.SyllabusEditLock) SyllabusEditLock.release();
+        });
 
         // ===== Upload Document =====
         function parseApiError(body, status) {
@@ -564,18 +393,22 @@
             formData.append('file', file);
 
             try {
-                const res = await fetch(`${API}/upload/`, { method: 'POST', body: formData });
+                const res = await authFetch(`${API}/upload/`, { method: 'POST', body: formData });
                 if (!res.ok) throw new Error(await readApiError(res));
                 const data = await res.json();
                 
                 state.docId = data.id;
+                state.programId = data.program_link?.program_id || null;
                 state.docName = data.filename;
                 state.docType = data.doc_type || '';
                 state.sections = data.sections;
                 state.collapsedNodes.clear();
                 
                 document.getElementById('doc-name').textContent = data.filename;
+                document.getElementById('doc-name').title = data.filename;
                 document.getElementById('sections-count').textContent = data.sections.length;
+                const search = document.getElementById('sectionSearch');
+                if (search) search.value = '';
                 
                 renderSections();
                 
@@ -588,6 +421,7 @@
                     updateExportState();
                 }
                 showToast(`Документ «${data.filename}» загружен`);
+                refreshEditorRibbon();
             } catch (e) {
                 showToast('Ошибка: ' + e.message, 'error');
             } finally {
@@ -662,14 +496,53 @@
             }
         }
 
+        function sectionSearchQuery() {
+            return (document.getElementById('sectionSearch')?.value || '').trim().toLowerCase();
+        }
+
+        function sectionsForDisplay() {
+            const q = sectionSearchQuery();
+            if (!q) return state.sections;
+            return state.sections.filter(s =>
+                String(s.section_name || '').toLowerCase().includes(q)
+            );
+        }
+
         function renderSections() {
             const list = document.getElementById('sections-list');
             if (state.sections.length === 0) {
-                list.innerHTML = '<div class="empty-state">Загрузите документ</div>';
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <p>Откройте .docx или .pdf кнопкой «Открыть» на ленте</p>
+                    </div>`;
+                return;
+            }
+
+            const visible = sectionsForDisplay();
+            if (!visible.length) {
+                list.innerHTML = '<div class="empty-state"><p>Разделы не найдены</p></div>';
                 return;
             }
 
             list.innerHTML = '';
+            const q = sectionSearchQuery();
+            if (q) {
+                visible.forEach(section => {
+                    const item = document.createElement('div');
+                    item.className = `tree-item level-${section.level || 1}${state.selectedSectionId === section.id ? ' active' : ''}`;
+                    const spacer = document.createElement('span');
+                    spacer.className = 'tree-toggle';
+                    const label = document.createElement('span');
+                    label.className = 'tree-label';
+                    label.textContent = section.section_name;
+                    item.appendChild(spacer);
+                    item.appendChild(label);
+                    item.onclick = () => selectSection(section.id);
+                    list.appendChild(item);
+                });
+                return;
+            }
+
             const byParent = buildSectionTree(state.sections);
             const roots = byParent.get('root') || [];
             roots.forEach(section => renderTreeNode(section, byParent, list));
@@ -715,7 +588,6 @@
             if (!editorReady) {
                 state.pendingSectionId = id;
                 document.getElementById('section-title').textContent = section.section_name;
-                document.getElementById('save-btn').disabled = false;
                 renderSections();
                 return;
             }
@@ -726,7 +598,6 @@
                 editor.setContent(ensureHtml(section.content || ''));
             }
             document.getElementById('section-title').textContent = section.section_name;
-            document.getElementById('save-btn').disabled = false;
             renderSections();
         }
 
@@ -740,7 +611,7 @@
                 const section = state.sections.find(s => s.id === state.selectedSectionId);
                 const content = section ? section.content : state.sectionContent;
                 
-                const res = await fetch(`${API}/sections/${state.selectedSectionId}/`, {
+                const res = await authFetch(`${API}/sections/${state.selectedSectionId}/`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ content: content }),
@@ -763,7 +634,7 @@
             flushEditorToState();
             await Promise.all(
                 state.sections.map(s =>
-                    fetch(`${API}/sections/${s.id}/`, {
+                    authFetch(`${API}/sections/${s.id}/`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ content: s.content || '' }),
@@ -773,14 +644,14 @@
         }
 
         async function requestExport(url, payload) {
-            let res = await fetch(url, {
+            let res = await authFetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
             // Старый сервер без POST /export/ — используем GET после сохранения разделов
             if (res.status === 405) {
-                res = await fetch(url);
+                res = await authFetch(url);
             }
             return res;
         }
@@ -789,14 +660,15 @@
         async function handleExport() {
             const templateId = document.getElementById('template-select').value;
             if (!state.docId) {
-                return showToast('Сначала загрузите документ (Открыть файл → Загрузить)', 'error');
+                return showToast('Сначала откройте документ (кнопка «Открыть» на ленте)', 'error');
             }
             if (!templateId) {
                 return showToast('Выберите шаблон в списке «Шаблон:»', 'error');
             }
 
             document.getElementById('status-text').textContent = 'Сохранение и экспорт...';
-            document.getElementById('export-btn').disabled = true;
+            const exportBtn = document.getElementById('rbExportDoc');
+            if (exportBtn) exportBtn.disabled = true;
 
             try {
                 await persistAllSectionsForExport();
@@ -806,6 +678,7 @@
 
                 const injected = res.headers.get('X-Sections-Injected');
                 const total = res.headers.get('X-Sections-Total');
+                const mode = res.headers.get('X-Export-Mode');
 
                 const blob = await res.blob();
                 const objectUrl = URL.createObjectURL(blob);
@@ -818,7 +691,9 @@
                 link.remove();
                 URL.revokeObjectURL(objectUrl);
                 const note = injected && total
-                    ? `Скачан файл (в шаблон подставлено ${injected} из ${total} разделов)`
+                    ? (mode === 'assemble'
+                        ? `Скачан документ: шапка макета + ${injected} разделов вашего файла`
+                        : `Скачан файл (в шаблон подставлено ${injected} из ${total} разделов)`)
                     : 'Файл скачан';
                 showToast(note);
             } catch (e) {

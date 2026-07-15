@@ -5,7 +5,8 @@ from __future__ import annotations
 import io
 import json
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
+from typing import Iterable
 
 from docx import Document
 
@@ -17,8 +18,62 @@ from app.utils.discipline_code import (
 
 COMPETENCY_CODE_RE = re.compile(r"(?:УК|ОПК|ПК|ПСК)-\d+(?:\.\d+)?", re.IGNORECASE)
 INDICATOR_CODE_RE = re.compile(r"(?:УК|ОПК|ПК|ПСК)-\d+\.\d+", re.IGNORECASE)
+COMPETENCY_GROUP_RE = re.compile(r"((?:УК|ОПК|ПК|ПСК)-\d+)", re.IGNORECASE)
+_UNICODE_DASHES = ("\u2013", "\u2014", "\u2212", "\u2011")
 DEPT_FROM_FILENAME_RE = re.compile(r"_k(\d+)", re.IGNORECASE)
+
+
+def normalize_competency_text(text: str) -> str:
+    for ch in _UNICODE_DASHES:
+        text = text.replace(ch, "-")
+    return text
+
+
+def normalize_competency_code(code: str) -> str:
+    code = normalize_competency_text(code.strip()).upper()
+    code = re.sub(r"^UK-", "УК-", code)
+    code = re.sub(r"^OPK-", "ОПК-", code)
+    code = re.sub(r"^PK-", "ПК-", code)
+    code = re.sub(r"^PSK-", "ПСК-", code)
+    return code
+
+
+from app.utils.text import html_to_plain_text
+
+
+def extract_competency_codes_from_text(text: str) -> set[str]:
+    """Коды УК/ОПК/ПК из произвольного текста (HTML раздела, таблица и т.д.)."""
+    if not text:
+        return set()
+    normalized = normalize_competency_text(text)
+    codes: set[str] = set()
+    for match in INDICATOR_CODE_RE.finditer(normalized):
+        codes.add(normalize_competency_code(match.group(0)))
+    for match in COMPETENCY_CODE_RE.finditer(normalized):
+        code = normalize_competency_code(match.group(0))
+        if INDICATOR_CODE_RE.fullmatch(code):
+            codes.add(code)
+    groups = {
+        normalize_competency_code(match.group(1))
+        for match in COMPETENCY_GROUP_RE.finditer(normalized)
+    }
+    for parent in groups:
+        for bare in _bare_indicators_with_parent(parent, normalized):
+            codes.add(normalize_competency_code(bare))
+    return codes
+
+
 DIRECTION_CODE_RE = re.compile(r"(\d{2}\.\d{2}\.\d{2})")
+DATE_DOT_RE = re.compile(r"\b\d{1,2}\.\d{1,2}\.(20\d{2})\b")
+YEAR_WITH_G_RE = re.compile(r"(20\d{2})\s*г\.?", re.IGNORECASE)
+REAPPROVAL_ACADEMIC_YEAR_RE = re.compile(
+    r"на\s+(20\d{2})\s*/\s*(20\d{2})\s*учеб",
+    re.IGNORECASE,
+)
+REAPPROVAL_PROTOCOL_YEAR_RE = re.compile(
+    r"протокол(?:\s+изменений\s+на\s+(20\d{2})\s*/\s*(20\d{2})|[^\n]{0,120}(20\d{2})\s*г)",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -44,6 +99,9 @@ class RpdExtract:
     department_code: str | None = None
     discipline_head: str | None = None
     director_name: str | None = None
+    approval_year: int | None = None
+    has_reapproval_section: bool = False
+    reapproval_years: list[int] = field(default_factory=list)
     hours_total: int | None = None
     credits: float | None = None
     competencies: list[str] = field(default_factory=list)
@@ -55,7 +113,28 @@ class RpdExtract:
     course_project_hours: int | None = None
     sr_has_current_control: bool = False
     sr_has_practical_exercises: bool = False
+    sr_has_homework_control: bool = False
     zuv_texts: list[str] = field(default_factory=list)
+    # Поля ТЗ (R015–R019, R024–R027) — additive, не ломают старый JSON
+    section2_zuv_by_indicator: dict[str, list[str]] = field(default_factory=dict)
+    topics31_zuv_phrases: list[str] = field(default_factory=list)
+    topics31_flag_hour_violations: list[str] = field(default_factory=list)
+    topics31_has_flag_columns: bool = False
+    topics31_assessments: list[dict] = field(default_factory=list)
+    topic_titles_bold: list[dict] = field(default_factory=list)
+    topic_numbers: list[int] = field(default_factory=list)
+    topic_names: dict[int, str] = field(default_factory=dict)
+    sr_rows: list[dict] = field(default_factory=list)
+    sr_control_work_hours: int | None = None
+    sr_course_work_hours_35: int | None = None
+    sr_course_project_hours_35: int | None = None
+    sr_questions: list[dict] = field(default_factory=list)
+    sr_questions_hours_total: int | None = None
+    sr_self_study_budget_hours: int | None = None
+    matrix_36_rows: list[dict] = field(default_factory=list)
+    matrix_36_col_totals: dict[str, int | None] = field(default_factory=dict)
+    pk_indicators_without_group: list[str] = field(default_factory=list)
+    pk_groups_ok: bool | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -66,7 +145,38 @@ class RpdExtract:
             return None
         data = json.loads(raw)
         volume_data = data.pop("volume", {}) or {}
+        for key, default in (
+            ("section2_zuv_by_indicator", {}),
+            ("topics31_zuv_phrases", []),
+            ("topics31_flag_hour_violations", []),
+            ("topic_numbers", []),
+            ("topic_names", {}),
+            ("sr_rows", []),
+            ("sr_questions", []),
+            ("matrix_36_rows", []),
+            ("matrix_36_col_totals", {}),
+            ("pk_indicators_without_group", []),
+        ):
+            data.setdefault(key, default)
+        data.setdefault("sr_has_homework_control", False)
+        data.setdefault("topics31_has_flag_columns", False)
+        data.setdefault("topics31_assessments", [])
+        data.setdefault("topic_titles_bold", [])
+        data.setdefault("pk_groups_ok", None)
+        if names := data.get("topic_names"):
+            data["topic_names"] = {int(k): v for k, v in names.items()}
         return cls(volume=VolumeBreakdown(**volume_data), **data)
+
+
+def enrich_rpd_competencies(rpd: RpdExtract, texts: Iterable[str]) -> RpdExtract:
+    """Дополняет извлечённые компетенции кодами из текста разделов документа."""
+    codes = {normalize_competency_code(code) for code in rpd.competencies}
+    for key in rpd.section2_zuv_by_indicator:
+        if key != "_ungrouped":
+            codes.add(normalize_competency_code(key))
+    for text in texts:
+        codes.update(extract_competency_codes_from_text(text))
+    return replace(rpd, competencies=sorted(codes))
 
 
 def _has_topic_marker(text: str) -> bool:
@@ -208,8 +318,108 @@ def _extract_passport_credits(doc: Document) -> float | None:
     return None
 
 
+def _competency_group(code: str) -> str | None:
+    match = COMPETENCY_GROUP_RE.match(code.upper())
+    return match.group(1) if match else None
+
+
+def _indicator_codes_in_text(text: str) -> list[str]:
+    return [match.group(0).upper() for match in INDICATOR_CODE_RE.finditer(text)]
+
+
+def _unique_cell_texts(row) -> list[str]:
+    seen: set[str] = set()
+    texts: list[str] = []
+    for cell in row.cells:
+        cleaned = re.sub(r"\s+", " ", cell.text.strip())
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            texts.append(cleaned)
+    return texts
+
+
+def _competency_table_column_hints(table) -> tuple[set[int], set[int]]:
+    code_cols: set[int] = set()
+    indicator_cols: set[int] = set()
+    for row in table.rows[: min(3, len(table.rows))]:
+        for idx, cell in enumerate(row.cells):
+            label = cell.text.lower().replace("\n", " ")
+            if "индикатор" in label or "показател" in label:
+                indicator_cols.add(idx)
+            if "компетенц" in label and ("код" in label or "наименование" in label):
+                code_cols.add(idx)
+    return code_cols, indicator_cols
+
+
+def _bare_indicators_with_parent(parent: str, text: str) -> list[str]:
+    """«УК-5» + текст «5.1 … 5.2 …» → УК-5.1, УК-5.2 (колонка индикаторов без префикса)."""
+    match = COMPETENCY_GROUP_RE.match(parent.upper())
+    if not match:
+        return []
+    kind, base = match.group(1).split("-", 1)
+    found: list[str] = []
+    pattern = re.compile(rf"(?<![\d.]){re.escape(base)}\.(\d+)(?![\d.])")
+    for item in pattern.finditer(text):
+        found.append(f"{kind}-{base}.{item.group(1)}")
+    return found
+
+
+def _collect_competency_codes_from_row(
+    row,
+    *,
+    code_cols: set[int],
+    indicator_cols: set[int],
+    current_group: str | None,
+) -> tuple[set[str], str | None]:
+    codes: set[str] = set()
+    cell_texts = _unique_cell_texts(row)
+    if not cell_texts:
+        return codes, current_group
+
+    row_text = " ".join(cell_texts)
+    indicator_parts: list[str] = []
+    code_parts: list[str] = []
+
+    seen_cells: set[str] = set()
+    for idx, cell in enumerate(row.cells):
+        cleaned = re.sub(r"\s+", " ", cell.text.strip())
+        if not cleaned or cleaned in seen_cells:
+            continue
+        seen_cells.add(cleaned)
+        if indicator_cols and idx in indicator_cols:
+            indicator_parts.append(cleaned)
+        elif code_cols and idx in code_cols:
+            code_parts.append(cleaned)
+        elif any(marker in cleaned.lower() for marker in ("знать:", "уметь:", "владеть:")):
+            indicator_parts.append(cleaned)
+
+    indicator_text = " ".join(indicator_parts) if indicator_parts else row_text
+    code_text = " ".join(code_parts) if code_parts else row_text
+
+    for match in INDICATOR_CODE_RE.finditer(indicator_text):
+        codes.add(normalize_competency_code(match.group(0)))
+    for match in INDICATOR_CODE_RE.finditer(row_text):
+        codes.add(normalize_competency_code(match.group(0)))
+
+    row_group = current_group
+    for match in COMPETENCY_CODE_RE.finditer(code_text):
+        code = normalize_competency_code(match.group(0))
+        codes.add(code)
+        if not INDICATOR_CODE_RE.fullmatch(code):
+            row_group = _competency_group(code) or row_group
+
+    parent = row_group
+    for bare in _bare_indicators_with_parent(parent, indicator_text):
+        codes.add(normalize_competency_code(bare))
+    for bare in _bare_indicators_with_parent(parent, row_text):
+        codes.add(normalize_competency_code(bare))
+
+    return codes, row_group
+
+
 def _extract_competencies(doc: Document) -> list[str]:
     codes: set[str] = set()
+    current_group: str | None = None
     for table in doc.tables:
         if not table.rows:
             continue
@@ -221,10 +431,17 @@ def _extract_competencies(doc: Document) -> list[str]:
         )
         if _classify_table(header, second) != "competencies":
             continue
-        for row in table.rows:
-            for cell in row.cells:
-                for match in COMPETENCY_CODE_RE.finditer(cell.text):
-                    codes.add(match.group(0).upper())
+
+        code_cols, indicator_cols = _competency_table_column_hints(table)
+        for row in table.rows[1:]:
+            row_codes, current_group = _collect_competency_codes_from_row(
+                row,
+                code_cols=code_cols,
+                indicator_cols=indicator_cols,
+                current_group=current_group,
+            )
+            codes.update(row_codes)
+
     return sorted(codes)
 
 
@@ -384,6 +601,56 @@ def _extract_sr_table(
     return None, has_current_control, has_practical_exercises, course_project_hours
 
 
+def _years_in_signature_text(text: str) -> list[int]:
+    years: list[int] = []
+    for match in DATE_DOT_RE.finditer(text):
+        years.append(int(match.group(1)))
+    for match in YEAR_WITH_G_RE.finditer(text):
+        year = int(match.group(1))
+        if year not in years:
+            years.append(year)
+    return years
+
+
+def _extract_approval_year(doc: Document) -> int | None:
+    for table in doc.tables[:3]:
+        if not table.rows:
+            continue
+        header = " ".join(c.text for c in table.rows[0].cells).lower()
+        if _classify_table(header) != "passport_signatures":
+            continue
+        for row in table.rows:
+            for cell in row.cells:
+                text = cell.text.strip()
+                if not text or "утвержда" not in text.lower():
+                    continue
+                years = _years_in_signature_text(text)
+                if years:
+                    return years[-1]
+    return None
+
+
+def _extract_reapproval_years(doc: Document) -> tuple[bool, list[int]]:
+    full = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+    marker = "сведения о переутвержден"
+    idx = full.lower().find(marker)
+    if idx < 0:
+        return False, []
+
+    section = full[idx:]
+    years: set[int] = set()
+    for match in REAPPROVAL_ACADEMIC_YEAR_RE.finditer(section):
+        years.add(int(match.group(1)))
+        years.add(int(match.group(2)))
+    for match in REAPPROVAL_PROTOCOL_YEAR_RE.finditer(section):
+        if match.group(1) and match.group(2):
+            years.add(int(match.group(1)))
+            years.add(int(match.group(2)))
+        elif match.group(3):
+            years.add(int(match.group(3)))
+    return True, sorted(years)
+
+
 def _extract_signatures(doc: Document) -> tuple[str | None, str | None]:
     director_name: str | None = None
     discipline_head: str | None = None
@@ -438,6 +705,8 @@ def extract_rpd(file_bytes: bytes, filename: str = "upload.docx") -> RpdExtract:
     code = resolve_discipline_code(file_bytes, filename)
     sr_total, sr_current, sr_practical, course_project_hours = _extract_sr_table(doc)
     director_name, discipline_head = _extract_signatures(doc)
+    approval_year = _extract_approval_year(doc)
+    has_reapproval_section, reapproval_years = _extract_reapproval_years(doc)
 
     direction_code = None
     direction_raw = passport.get("direction_raw", "")
@@ -447,14 +716,21 @@ def extract_rpd(file_bytes: bytes, filename: str = "upload.docx") -> RpdExtract:
 
     topics_contact, topics_lectures, topics_practical = _extract_topics_hours(doc, volume)
 
-    return RpdExtract(
+    from app.services.rpd_extract_tz import extract_tz_fields, merge_tz_into_rpd_dict
+
+    discipline_name = _discipline_name_from_passport(passport)
+    tz = extract_tz_fields(doc, discipline_name)
+    result = RpdExtract(
         discipline_code=code,
-        discipline_name=_discipline_name_from_passport(passport),
+        discipline_name=discipline_name,
         direction_code=direction_code,
         profile_name=passport.get("profile_name"),
         department_code=_department_from_filename(filename),
         discipline_head=discipline_head,
         director_name=director_name,
+        approval_year=approval_year,
+        has_reapproval_section=has_reapproval_section,
+        reapproval_years=reapproval_years,
         hours_total=hours_total,
         credits=credits,
         competencies=_extract_competencies(doc),
@@ -468,3 +744,7 @@ def extract_rpd(file_bytes: bytes, filename: str = "upload.docx") -> RpdExtract:
         sr_has_practical_exercises=sr_practical,
         zuv_texts=_extract_zuv_texts(doc),
     )
+    base = asdict(result)
+    merge_tz_into_rpd_dict(base, tz)
+    volume_data = base.pop("volume", {}) or {}
+    return RpdExtract(volume=VolumeBreakdown(**volume_data), **base)

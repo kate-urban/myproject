@@ -2,15 +2,17 @@ import os
 import uuid
 from typing import List, Optional
 
-from bs4 import BeautifulSoup
+from app.utils.text import section_plain_text
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, Body
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Document, Section, Template
+from app.models import Document, PlanDiscipline, Program, Section, StudyPlan, Template
 from app.schemas import (
+    BatchUploadItemOut,
+    BatchUploadOut,
     DocumentOut,
     ExportRequest,
     ProgramLinkOut,
@@ -18,10 +20,18 @@ from app.schemas import (
     SectionUpdate,
     TemplateOut,
 )
+from app.services.document_reextract import refresh_extract_for_document
+from app.services.document_storage import resolve_document_source_path
+from app.services.export_finalize import finalize_export_docx
 from app.services.exporter import Exporter
-from app.services.parser import DocumentParser, ParsedSection
-from app.services.rpd_linker import link_document_to_program
-from app.utils.link_messages import format_link_reason
+from app.services.rpd_extractor import RpdExtract
+from app.config import EDIT_LOCKS_ENABLED, EXPORT_USE_ORIGINAL
+from app.api.auth_deps import get_current_user
+from app.services.auth import CurrentUser
+from app.utils.http_errors import public_error_message
+from app.utils.upload_limits import read_upload_bytes
+from app.services.edit_lock import assert_can_edit_document
+from app.services.document_upload import batch_ingest_documents, ingest_document_bytes
 from app.services.template_manager import list_templates, save_template, seed_layout_templates
 
 router = APIRouter()
@@ -31,83 +41,70 @@ EXPORTS_DIR = os.getenv("EXPORTS_DIR", os.path.join(_PROJECT_ROOT, "exports"))
 os.makedirs(EXPORTS_DIR, exist_ok=True)
 
 
+async def _program_link_for_document(
+    db: AsyncSession,
+    doc_id: uuid.UUID,
+) -> ProgramLinkOut | None:
+    result = await db.execute(
+        select(Program, PlanDiscipline)
+        .join(PlanDiscipline, Program.plan_discipline_id == PlanDiscipline.id)
+        .where(
+            (Program.document_id == doc_id) | (Program.fos_document_id == doc_id)
+        )
+    )
+    row = result.first()
+    if row is None:
+        return None
+    program, discipline = row
+    doc_kind = "fos" if program.fos_document_id == doc_id else "rpd"
+    return ProgramLinkOut(
+        linked=True,
+        discipline_code=discipline.code,
+        plan_discipline_id=discipline.id,
+        study_plan_id=discipline.study_plan_id,
+        program_id=program.id,
+        program_status=program.status,
+        doc_kind=doc_kind,
+    )
+
+
 @router.get("/system/info/")
 async def system_info():
+    from app.config import (
+        DEFAULT_FOS_TEMPLATE_NAME,
+        DEFAULT_RPD_TEMPLATE_NAME,
+        EXPORT_FILL_REAPPROVAL,
+        EXPORT_FILL_SIGNATURES,
+        EXPORT_REQUIRE_REAPPROVAL,
+        EXPORT_REQUIRE_VALIDATION,
+    )
     from app.utils.discipline_code import PARSER_VERSION
 
     return {
         "code_parser_version": PARSER_VERSION,
         "validation_ui": "/validation",
+        "workspace_ui": "/",
+        "export": {
+            "require_validation": EXPORT_REQUIRE_VALIDATION,
+            "require_reapproval": EXPORT_REQUIRE_REAPPROVAL,
+            "fill_signatures": EXPORT_FILL_SIGNATURES,
+            "fill_reapproval": EXPORT_FILL_REAPPROVAL,
+            "default_rpd_template_name": DEFAULT_RPD_TEMPLATE_NAME,
+            "default_fos_template_name": DEFAULT_FOS_TEMPLATE_NAME,
+        },
     }
-
-
-def _to_plain_text(content: str, limit: int = 1000) -> str:
-    return BeautifulSoup(content, "html.parser").get_text()[:limit]
 
 
 @router.post("/upload/", response_model=DocumentOut)
 async def upload_document(
     file: UploadFile = File(...),
     study_plan_id: Optional[str] = Form(None),
+    propagate_all_plans: bool = Form(False),
     db: AsyncSession = Depends(get_db),
 ):
-    ext = file.filename.split(".")[-1].lower()
-    if ext not in ("pdf", "docx"):
-        raise HTTPException(status_code=400, detail="Поддерживаются только PDF и DOCX")
-
-    file_bytes = await file.read()
-    if not file_bytes:
-        raise HTTPException(status_code=400, detail="Пустой файл")
-
-    parser = DocumentParser()
-    try:
-        if ext == "pdf":
-            doc_type, parsed_sections = await parser.parse_pdf(file_bytes)
-        else:
-            doc_type, parsed_sections = await parser.parse_docx(file_bytes)
-    except Exception as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Не удалось разобрать файл: {e}",
-        ) from e
-
-    if not parsed_sections:
-        parsed_sections = [
-            ParsedSection(
-                section_name="Содержание",
-                content="(пустой документ)",
-                level=1,
-                order_index=0,
-            )
-        ]
-
-    doc_id = uuid.uuid4()
-    db.add(Document(id=doc_id, filename=file.filename, doc_type=doc_type))
-
-    section_ids: list[uuid.UUID] = []
-    for sec in parsed_sections:
-        parent_id = (
-            section_ids[sec.parent_index]
-            if sec.parent_index is not None and sec.parent_index < len(section_ids)
-            else None
-        )
-        section_id = uuid.uuid4()
-        section_ids.append(section_id)
-        db.add(
-            Section(
-                id=section_id,
-                document_id=doc_id,
-                parent_id=parent_id,
-                section_name=sec.section_name,
-                content=sec.content,
-                content_plain=_to_plain_text(sec.content),
-                level=sec.level,
-                order_index=sec.order_index,
-            )
-        )
-
-    program_link: ProgramLinkOut | None = None
-    if study_plan_id and ext == "docx":
+    file_bytes = await read_upload_bytes(file)
+    plan_uuid: uuid.UUID | None = None
+    if study_plan_id:
         try:
             plan_uuid = uuid.UUID(study_plan_id)
         except ValueError as exc:
@@ -115,31 +112,59 @@ async def upload_document(
                 status_code=400,
                 detail="study_plan_id должен быть UUID",
             ) from exc
-        link_result = await link_document_to_program(
+
+    try:
+        result = await ingest_document_bytes(
             db,
-            document_id=doc_id,
-            study_plan_id=plan_uuid,
             file_bytes=file_bytes,
             filename=file.filename or "upload.docx",
+            study_plan_id=plan_uuid,
+            propagate_all_plans=propagate_all_plans,
         )
-        program_link = ProgramLinkOut(
-            linked=link_result.linked,
-            discipline_code=link_result.discipline_code,
-            plan_discipline_id=link_result.plan_discipline_id,
-            study_plan_id=link_result.study_plan_id,
-            program_status=link_result.program_status,
-            doc_kind=link_result.doc_kind,
-            reason=link_result.reason,
-            message=format_link_reason(
-                link_result.reason,
-                discipline_code=link_result.discipline_code,
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=public_error_message(
+                exc,
+                fallback="Не удалось разобрать файл",
             ),
-        )
+        ) from exc
 
     await db.commit()
-    document = await get_document(str(doc_id), db)
-    document.program_link = program_link
+    document = await get_document(str(result.document_id), db)
+    document.program_link = result.program_link
     return document
+
+
+@router.post("/upload/batch/", response_model=BatchUploadOut)
+async def batch_upload_documents(
+    study_plan_id: str = Form(...),
+    files: list[UploadFile] = File(...),
+    propagate_all_plans: bool = Form(False),
+    db: AsyncSession = Depends(get_db),
+):
+    """Пакетная загрузка .doc/.docx: конвертация .doc и привязка к дисциплинам УП."""
+    try:
+        plan_uuid = uuid.UUID(study_plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="study_plan_id должен быть UUID") from exc
+
+    plan = await db.get(StudyPlan, plan_uuid)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Учебный план не найден")
+    if not files:
+        raise HTTPException(status_code=400, detail="Не выбраны файлы")
+
+    return await batch_ingest_documents(
+        db,
+        study_plan_id=plan_uuid,
+        propagate_all_plans=propagate_all_plans,
+        uploads=files,
+    )
 
 
 @router.get("/documents/{doc_id}/", response_model=DocumentOut)
@@ -162,6 +187,7 @@ async def get_document(doc_id: str, db: AsyncSession = Depends(get_db)):
         doc_type=doc.doc_type,
         uploaded_at=doc.uploaded_at,
         sections=[SectionOut.model_validate(s) for s in sections],
+        program_link=await _program_link_for_document(db, doc.id),
     )
 
 
@@ -169,20 +195,82 @@ async def get_document(doc_id: str, db: AsyncSession = Depends(get_db)):
 async def update_section(
     section_id: str,
     update_data: SectionUpdate,
+    program_id: Optional[str] = Query(None, description="Контекст программы для copy-on-write"),
     db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     result = await db.execute(select(Section).where(Section.id == section_id))
     section = result.scalar_one_or_none()
     if not section:
         raise HTTPException(status_code=404, detail="Раздел не найден")
 
+    prog_uuid: uuid.UUID | None = None
+    if program_id:
+        try:
+            prog_uuid = uuid.UUID(program_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="program_id должен быть UUID") from exc
+
+    if EDIT_LOCKS_ENABLED:
+        try:
+            await assert_can_edit_document(
+                db,
+                document_id=section.document_id,
+                user=user,
+                program_id=prog_uuid,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     if update_data.content is not None:
+        from app.services.document_fork import (
+            find_corresponding_section,
+            fork_document_for_program,
+            resolve_program_for_document_edit,
+        )
+
+        program = await resolve_program_for_document_edit(
+            db, section.document_id, program_id=prog_uuid
+        )
+        if program is not None:
+            new_doc_id = await fork_document_for_program(
+                db,
+                document_id=section.document_id,
+                program_id=program.id,
+            )
+            if new_doc_id != section.document_id:
+                mapped = await find_corresponding_section(
+                    db,
+                    document_id=new_doc_id,
+                    section_name=section.section_name,
+                    order_index=section.order_index,
+                )
+                if mapped is not None:
+                    section = mapped
+
         section.content = update_data.content
-        section.content_plain = _to_plain_text(update_data.content)
+        section.content_plain = section_plain_text(update_data.content)
 
     await db.commit()
     await db.refresh(section)
     return SectionOut.model_validate(section)
+
+
+@router.post("/documents/{doc_id}/refresh-extract/")
+async def refresh_document_extract(doc_id: str, db: AsyncSession = Depends(get_db)):
+    """Пересчитать rpd/fos extract из сохранённых разделов редактора (для сверки)."""
+    try:
+        doc_uuid = uuid.UUID(doc_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="doc_id должен быть UUID") from exc
+
+    try:
+        doc_kind = await refresh_extract_for_document(db, doc_uuid)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    await db.commit()
+    return {"doc_id": doc_id, "doc_kind": doc_kind, "refreshed": True}
 
 
 @router.get("/export/{doc_id}/")
@@ -226,7 +314,7 @@ async def _export_document(
         for section in sections:
             if str(section.id) in updates:
                 section.content = updates[str(section.id)]
-                section.content_plain = _to_plain_text(section.content)
+                section.content_plain = section_plain_text(section.content)
         await db.commit()
 
     sections_dict = {
@@ -234,20 +322,63 @@ async def _export_document(
         for s in sections
         if s.content and str(s.content).strip()
     }
+    sections_order = [s.section_name for s in sections]
 
+    doc_result = await db.execute(select(Document).where(Document.id == doc_id))
+    document = doc_result.scalar_one_or_none()
+    if document is None:
+        raise HTTPException(status_code=404, detail="Документ не найден")
+
+    template_result = await db.execute(select(Template).where(Template.id == template_id))
+    template = template_result.scalar_one_or_none()
+    template_name = template.name if template else None
+
+    source_file = None
+    if EXPORT_USE_ORIGINAL:
+        source_file = resolve_document_source_path(document.id, source_path=document.source_path)
     try:
         output_path, stats = await Exporter.export_document(
             document_id=doc_id,
             sections_data=sections_dict,
             template_id=template_id,
             output_dir=EXPORTS_DIR,
+            sections_order=sections_order,
+            doc_type=document.doc_type,
+            template_name=template_name,
+            source_path=str(source_file) if source_file else None,
+            incremental=bool(source_file),
         )
+        prog_result = await db.execute(
+            select(Program, PlanDiscipline)
+            .join(PlanDiscipline, Program.plan_discipline_id == PlanDiscipline.id)
+            .where(
+                (Program.document_id == doc_id) | (Program.fos_document_id == doc_id)
+            )
+        )
+        prog_row = prog_result.first()
+        if prog_row and str(prog_row[0].document_id) == str(doc_id):
+            program, discipline = prog_row
+            rpd = (
+                RpdExtract.from_json(program.rpd_extract_json)
+                if program.rpd_extract_json
+                else None
+            )
+            fin = finalize_export_docx(
+                output_path,
+                rpd=rpd,
+                discipline_code=discipline.code,
+                discipline_name=discipline.name,
+            )
+            stats.update(fin)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Ошибка формирования DOCX: {e}",
+            detail=public_error_message(
+                e,
+                fallback="Ошибка формирования DOCX",
+            ),
         ) from e
 
     return FileResponse(
@@ -257,6 +388,7 @@ async def _export_document(
         headers={
             "X-Sections-Total": str(len(sections_dict)),
             "X-Sections-Injected": str(stats.get("injected", 0)),
+            "X-Export-Mode": str(stats.get("mode", "")),
         },
     )
 
@@ -271,7 +403,7 @@ async def upload_template(
     if ext != "docx":
         raise HTTPException(status_code=400, detail="Только DOCX шаблоны")
 
-    file_bytes = await file.read()
+    file_bytes = await read_upload_bytes(file)
     template_id = await save_template(file_bytes, file.filename, name or file.filename)
 
     result = await db.execute(select(Template).where(Template.id == template_id))

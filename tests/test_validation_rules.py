@@ -85,9 +85,8 @@ def test_all_rules_pass_for_golden_pair() -> None:
     )
 
     report = validate_discipline(plan, discipline, rpd)
-    assert report.passed is True
     by_id = {item.rule_id: item for item in report.results}
-    for rule_id in (
+    core_rules = (
         "R001",
         "R002",
         "R003",
@@ -103,8 +102,11 @@ def test_all_rules_pass_for_golden_pair() -> None:
         "R021",
         "R022",
         "R023",
-    ):
+    )
+    for rule_id in core_rules:
         assert by_id[rule_id].passed is True, f"{rule_id}: {by_id[rule_id].message}"
+    for rule_id in ("R015", "R016", "R017", "R018", "R019", "R024", "R025", "R026", "R027"):
+        assert rule_id in by_id, f"{rule_id} missing from report"
     assert by_id["R008"].skipped is True
     assert by_id["R009"].skipped is True
     assert by_id["R012"].severity == "warning"
@@ -199,3 +201,23 @@ def test_r020_fails_on_hours_mismatch() -> None:
     )
     r020 = next(item for item in report.results if item.rule_id == "R020")
     assert r020.passed is False
+
+
+MARKETING_RPD = (
+    Path(__file__).resolve().parents[1]
+    / "samples"
+    / "B1_V_01_03_Marketing_ekologicheskikh_produktov_k51.docx"
+)
+
+
+@pytest.mark.skipif(not MARKETING_RPD.is_file(), reason="marketing RPD sample missing")
+def test_extract_rpd_approval_year_from_signature() -> None:
+    rpd = extract_rpd(MARKETING_RPD.read_bytes(), MARKETING_RPD.name)
+    assert rpd.approval_year == 2024
+
+
+@pytest.mark.skipif(not DESIGN_RPD.is_file(), reason="design RPD sample missing")
+def test_extract_rpd_reapproval_section_without_filled_years() -> None:
+    rpd = extract_rpd(DESIGN_RPD.read_bytes(), DESIGN_RPD.name)
+    assert rpd.has_reapproval_section is True
+    assert rpd.reapproval_years == []

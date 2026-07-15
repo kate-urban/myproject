@@ -12,7 +12,7 @@ from app.models import Document, PlanDiscipline, Profile, StudyPlan
 from app.services.importers import StudyPlanImporter
 from app.services.rpd_extractor import extract_rpd
 from app.services.rpd_linker import link_document_to_program
-from app.services.validation import validate_program
+from app.services.validation import validate_program, CORE_RULE_IDS
 from app.utils.discipline_code import resolve_discipline_code
 from tests.golden_design_data import (
     DESIGN_PLX,
@@ -101,6 +101,7 @@ async def test_golden_pair_link_and_validate(db_session, pair: GoldenDesignPair)
             .options(
                 selectinload(PlanDiscipline.program),
                 selectinload(PlanDiscipline.competencies),
+                selectinload(PlanDiscipline.assessments),
             )
             .where(
                 PlanDiscipline.study_plan_id == plan.id,
@@ -117,7 +118,9 @@ async def test_golden_pair_link_and_validate(db_session, pair: GoldenDesignPair)
         )
     ).scalar_one()
 
-    report = validate_program(plan_loaded, discipline, discipline.program)
+    report = validate_program(
+        plan_loaded, discipline, discipline.program, rule_ids=CORE_RULE_IDS
+    )
     failed = _failed_critical_rules(report)
 
     if pair.validation_passes:

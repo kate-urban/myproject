@@ -4,5 +4,6 @@ __pycache__/
 .env
 exports/
 templates/
+data/private/
 *.docx
 .DS_Store

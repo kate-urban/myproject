@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Syllabus — справочники</title>
+  <link rel="stylesheet" href="/static/css/shell.css?v=20260714c">
+  <script src="/static/js/ui_ru.js"></script>
+  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/api_utils.js"></script>
+  <script src="/static/js/shell.js?v=20260714"></script>
+  <script src="/static/js/embed_mode.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="app-brand" href="/">
+      <div class="app-logo" id="appHeaderLogo">S</div>
+      <div>
+        <h1 id="appHeaderTitle">Syllabus</h1>
+        <div class="subtitle" id="appHeaderSubtitle"></div>
+      </div>
+    </a>
+    <span class="header-context" id="appHeaderContext"></span>
+    <span class="header-extra" id="appHeaderExtra"></span>
+    <div class="header-actions" id="appHeaderActions">
+      <span class="user-chip hidden" id="headerUser"></span>
+    </div>
+    <nav class="header-nav" id="appHeaderNav"></nav>
+    <button type="button" class="btn-header hidden" id="btnHeaderLogout">Выход</button>
+  </header>
+
+  <div class="layout app-layout layout-ref">
+    <aside class="sidebar app-sidebar ref-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Справочники</div>
+        <button class="ref-tab active" data-ref="phrases" type="button">Фразы</button>
+        <button class="ref-tab" data-ref="abbreviations" type="button">Сокращения</button>
+        <button class="ref-tab" data-ref="departments" type="button">Кафедры</button>
+        <button class="ref-tab" data-ref="signatures" type="button">Подписи</button>
+        <button class="ref-tab" data-ref="fgos" type="button">ФГОС</button>
+        <button class="ref-tab" data-ref="mto" type="button">МТО</button>
+        <button class="ref-tab" data-ref="authors-load" type="button">Нагрузка авторов</button>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">Сервис</div>
+        <button class="ref-tab" data-ref="archive" type="button">Архив</button>
+        <button class="ref-tab" data-ref="layout" type="button">Макеты</button>
+      </div>
+    </aside>
+    <div class="main-col">
+      <main id="refMain" class="page-main"><div class="empty-state">Загрузка…</div></main>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="refModal">
+    <div class="modal">
+      <h3 id="modalTitle">Редактирование</h3>
+      <form id="modalForm"></form>
+    </div>
+  </div>
+
+  <script src="/static/js/reference_page.js?v=20260709m"></script>
+</body>
+</html>

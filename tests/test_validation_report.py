@@ -73,8 +73,8 @@ def test_validation_html_present() -> None:
     path = Path(__file__).resolve().parents[1] / "validation.html"
     assert path.is_file()
     text = path.read_text(encoding="utf-8")
-    assert "Сверка РПД" in text
-    assert 'const API = "/api/v1"' in text
-    assert "/study-plans/" in text
+    assert "Сверка УП" in text
+    assert "validation_page.js" in text
+    assert "/study-plans/" in text or "study-plans" in text
     assert "</style>" in text
     assert "<body>" in text

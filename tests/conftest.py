@@ -36,6 +36,7 @@ async def db_session():
 
     from app.database import Base
     import app.models  # noqa: F401
+    import app.models_tz  # noqa: F401
 
     engine = create_async_engine(DATABASE_URL, echo=False)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -71,6 +72,10 @@ async def db_session():
             "ALTER TABLE programs ADD COLUMN IF NOT EXISTS rpd_extract_json TEXT",
             "ALTER TABLE programs ADD COLUMN IF NOT EXISTS fos_document_id UUID",
             "ALTER TABLE programs ADD COLUMN IF NOT EXISTS fos_extract_json TEXT",
+            "ALTER TABLE study_plans ADD COLUMN IF NOT EXISTS folder_path VARCHAR",
+            "ALTER TABLE programs ADD COLUMN IF NOT EXISTS program_kind VARCHAR(16) DEFAULT 'discipline'",
+            "ALTER TABLE programs ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE programs ADD COLUMN IF NOT EXISTS constructor_json TEXT",
         ):
             await conn.execute(text(ddl))
 

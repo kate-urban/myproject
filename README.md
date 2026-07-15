@@ -15,7 +15,9 @@ setup.bat
 run.bat
 ```
 
-Откройте http://localhost:8000/
+Откройте http://localhost:8000/ — рабочее место (учебные планы).  
+Редактор документов: http://localhost:8000/editor  
+Сверка УП ↔ РПД ↔ ФОС: http://localhost:8000/validation
 
 ## Ручная установка
 

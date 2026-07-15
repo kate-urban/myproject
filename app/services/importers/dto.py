@@ -6,6 +6,13 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class AssessmentDTO:
+    form_type: str  # exam | zachet | zachet_graded | kp | kr | control_work
+    semester: int | None = None
+    course: int | None = None
+
+
+@dataclass
 class DisciplineDTO:
     code: str
     name: str
@@ -22,6 +29,7 @@ class DisciplineDTO:
     row_order: int = 0
     object_type: str | None = None
     competencies: list[str] = field(default_factory=list)
+    assessments: list[AssessmentDTO] = field(default_factory=list)
 
 
 @dataclass

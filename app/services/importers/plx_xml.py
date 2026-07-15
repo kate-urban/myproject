@@ -5,7 +5,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from app.services.importers.dto import DisciplineDTO, StudyPlanDTO
+from app.services.importers.dto import AssessmentDTO, DisciplineDTO, StudyPlanDTO
 from app.utils.plan_title import PlanTitleInfo, form_from_code, parse_titul
 
 # ТипОбъекта=1 — блок/модуль без собственного РПД; 2 — дисциплина; 3 — практика; 6 — ГИА.
@@ -13,6 +13,19 @@ IMPORTABLE_OBJECT_TYPES = {"2", "3", "6"}
 
 # Служебные виды работ в ПланыНовыеЧасы (не участвуют в R022/R023).
 SKIP_WORK_TYPE_CODES = {"50", "51", "1000", "1001"}
+
+# Формы аттестации (код вида работ в UpVo) — факт наличия, не часы.
+ASSESSMENT_WORK_CODES = {
+    "1": "exam",
+    "2": "zachet",
+    "3": "zachet_graded",
+    "4": "kp",
+    "5": "kr",
+    "6": "control_work",
+}
+
+# Часы «контроль» в УП — только контрольные работы (код 6), не экзамены/зачёты.
+CONTROL_HOUR_WORK_CODES = {"6"}
 
 
 def _local_tag(tag: str) -> str:
@@ -68,14 +81,44 @@ def _load_work_types(root: ET.Element) -> dict[str, dict[str, str]]:
 def _hour_bucket(work_code: str, meta: dict[str, str]) -> str | None:
     if not work_code or work_code in SKIP_WORK_TYPE_CODES:
         return None
-    type_code = meta.get("КодТипРабот", "")
-    if type_code == "7":
+    if work_code in ASSESSMENT_WORK_CODES:
+        return "assessment"
+    if work_code in CONTROL_HOUR_WORK_CODES:
         return "control"
+    type_code = meta.get("КодТипРабот", "")
     if type_code in {"5", "6"} or work_code in {"107", "108", "140"}:
         return "sr"
     if meta.get("Контактный", "").lower() == "true":
         return "contact"
     return None
+
+
+def _extract_assessments(
+    root: ET.Element,
+    row_code: str,
+) -> list[AssessmentDTO]:
+    items: list[AssessmentDTO] = []
+    seen: set[tuple[str, int | None, int | None]] = set()
+    for el in _iter_by_local_name(root, "ПланыНовыеЧасы"):
+        if _attr(el, "КодОбъекта") != row_code:
+            continue
+        work_code = _attr(el, "КодВидаРаботы")
+        form_type = ASSESSMENT_WORK_CODES.get(work_code)
+        if not form_type:
+            continue
+        qty = _int_attr(el, "Количество")
+        if qty is None or qty <= 0:
+            continue
+        course = _int_attr(el, "Курс")
+        semester = _int_attr(el, "Семестр")
+        key = (form_type, semester, course)
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(
+            AssessmentDTO(form_type=form_type, semester=semester, course=course)
+        )
+    return sorted(items, key=lambda a: (a.semester or 0, a.form_type))
 
 
 def _aggregate_row_hours(
@@ -115,7 +158,7 @@ def _aggregate_row_hours(
         contact or None,
         contact or None,
         sr or None,
-        None,
+        control or None,
     )
 
 
@@ -199,6 +242,7 @@ class PlxXmlReader:
             hours_contact, hours_aud, hours_sr, hours_control = _aggregate_row_hours(
                 root, row_code, work_types
             )
+            assessments = _extract_assessments(root, row_code)
             disciplines.append(
                 DisciplineDTO(
                     code=code,
@@ -216,6 +260,7 @@ class PlxXmlReader:
                     row_order=_int_attr(row_el, "Порядок") or 0,
                     object_type=object_type or None,
                     competencies=comp_codes,
+                    assessments=assessments,
                 )
             )
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-import tempfile
 import uuid
 from pathlib import Path
 
@@ -43,17 +41,15 @@ def test_headings_match(section: str, heading: str, expected: bool) -> None:
 
 @pytest.mark.skipif(not MAKET_RPD.is_file(), reason="Layout maket missing")
 @pytest.mark.skipif(not SAMPLE_RPD.is_file(), reason="sample RPD missing")
-def test_inject_rpd_sections_into_maket() -> None:
-    async def _load_sections() -> dict[str, str]:
-        data = SAMPLE_RPD.read_bytes()
-        _, sections = await DocumentParser().parse_docx(data)
-        return {
-            s.section_name: s.content
-            for s in sections
-            if s.content and s.content.strip()
-        }
-
-    sections_data = asyncio.run(_load_sections())
+@pytest.mark.asyncio
+async def test_inject_rpd_sections_into_maket() -> None:
+    data = SAMPLE_RPD.read_bytes()
+    _, sections = await DocumentParser().parse_docx(data)
+    sections_data = {
+        s.section_name: s.content
+        for s in sections
+        if s.content and s.content.strip()
+    }
     assert sections_data
 
     doc = Document(MAKET_RPD)
@@ -67,36 +63,37 @@ def test_inject_rpd_sections_into_maket() -> None:
 @pytest.mark.skipif(not MAKET_RPD.is_file(), reason="Layout maket missing")
 @pytest.mark.skipif(not SAMPLE_RPD.is_file(), reason="sample RPD missing")
 @pytest.mark.integration
-def test_seed_and_export_rpd_via_exporter(db_session, tmp_path, monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_seed_and_export_rpd_via_exporter(db_session, tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("TEMPLATES_DIR", str(tmp_path / "templates"))
     monkeypatch.setenv("LAYOUT_DIR", str(ROOT / "Layout"))
 
-    async def _run() -> Path:
-        await seed_layout_templates()
-        from app.services.template_manager import list_templates
+    from app.database import engine
 
-        templates = await list_templates()
-        rpd_template = next(t for t in templates if "РПД" in t.name)
+    await engine.dispose()
+    await seed_layout_templates()
+    from app.services.template_manager import list_templates
 
-        data = SAMPLE_RPD.read_bytes()
-        _, sections = await DocumentParser().parse_docx(data)
-        sections_data = {
-            s.section_name: s.content
-            for s in sections
-            if s.content and s.content.strip()
-        }
+    templates = await list_templates()
+    rpd_template = next(t for t in templates if "РПД" in t.name)
 
-        export_dir = tmp_path / "exports"
-        export_dir.mkdir()
-        output_path, _stats = await Exporter.export_document(
-            document_id=str(uuid.uuid4()),
-            sections_data=sections_data,
-            template_id=str(rpd_template.id),
-            output_dir=str(export_dir),
-        )
-        return Path(output_path)
+    data = SAMPLE_RPD.read_bytes()
+    _, sections = await DocumentParser().parse_docx(data)
+    sections_data = {
+        s.section_name: s.content
+        for s in sections
+        if s.content and s.content.strip()
+    }
 
-    output = asyncio.run(_run())
+    export_dir = tmp_path / "exports"
+    export_dir.mkdir()
+    output_path, _stats = await Exporter.export_document(
+        document_id=str(uuid.uuid4()),
+        sections_data=sections_data,
+        template_id=str(rpd_template.id),
+        output_dir=str(export_dir),
+    )
+    output = Path(output_path)
     assert output.is_file()
     doc = Document(output)
     text = "\n".join(p.text for p in doc.paragraphs)

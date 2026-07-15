@@ -1,0 +1,586 @@
+{
+  "root": "УЧЕБНЫЕ ПЛАНЫ",
+  "children": [
+    {
+      "name": "ЗАОЧНОЕ ОБУЧЕНИЕ",
+      "type": "dir",
+      "children": [
+        {
+          "name": "Бакалавры",
+          "type": "dir",
+          "children": [
+            {
+              "name": "Полное обучение ЗО",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "ИЛАСиОД",
+                  "type": "dir"
+                },
+                {
+                  "name": "ИЛБиИ",
+                  "type": "dir"
+                },
+                {
+                  "name": "ИЛиП",
+                  "type": "dir"
+                },
+                {
+                  "name": "ИТМиТЛ",
+                  "type": "dir"
+                },
+                {
+                  "name": "ИХПБДиТБ",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "Ускоренное обучение",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "ИЛиП",
+                  "type": "dir"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Магистры",
+          "type": "dir",
+          "children": [
+            {
+              "name": "ИЛАСиОД",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛБиИ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛиП",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИТМиТЛ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ОЧНО-ЗАОЧНОЕ ОБУЧЕНИЕ",
+      "type": "dir",
+      "children": [
+        {
+          "name": "Бакалавры",
+          "type": "dir",
+          "children": [
+            {
+              "name": "ИЛАСиОД",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2021",
+                  "type": "dir"
+                },
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛБиИ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2021",
+                  "type": "dir"
+                },
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИТМиТЛ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2021",
+                  "type": "dir"
+                },
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Магистры",
+          "type": "dir",
+          "children": [
+            {
+              "name": "ИЛАСиОД",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛБиИ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИТМиТЛ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ОЧНОЕ ОБУЧЕНИЕ",
+      "type": "dir",
+      "children": [
+        {
+          "name": "Аспиранты",
+          "type": "dir",
+          "children": [
+            {
+              "name": "2022",
+              "type": "dir",
+              "children": []
+            },
+            {
+              "name": "2023",
+              "type": "dir",
+              "children": []
+            },
+            {
+              "name": "2024",
+              "type": "dir",
+              "children": []
+            },
+            {
+              "name": "2025",
+              "type": "dir",
+              "children": []
+            },
+            {
+              "name": "2026",
+              "type": "dir",
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "Бакалавры",
+          "type": "dir",
+          "children": [
+            {
+              "name": "ИЛАСиОД",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛБиИ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛиП",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИТМиТЛ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИХПБДиТБ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2022",
+                  "type": "dir"
+                },
+                {
+                  "name": "2023",
+                  "type": "dir"
+                },
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Магистры",
+          "type": "dir",
+          "children": [
+            {
+              "name": "ИЛАСиОД",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛБиИ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИЛиП",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИТМиТЛ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            },
+            {
+              "name": "ИХПБДиТБ",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "2024",
+                  "type": "dir"
+                },
+                {
+                  "name": "2025",
+                  "type": "dir"
+                },
+                {
+                  "name": "2026",
+                  "type": "dir"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
